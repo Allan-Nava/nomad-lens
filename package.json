@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",

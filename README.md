@@ -2,7 +2,7 @@
 
 **HashiCorp Nomad operations inside VS Code** — the place where you already edit your job specs.
 
-📖 **[Guida d'uso completa →](docs/GUIDE.md)**
+🌐 **[Sito / landing page →](https://allan-nava.github.io/nomad-lens/)** · 📖 **[Guida d'uso completa →](docs/GUIDE.md)**
 
 ## Features
 

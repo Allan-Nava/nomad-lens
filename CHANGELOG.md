@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+
+### Aggiunto
+
+- GitHub Pages: landing page self-contained in `site/index.html` (hero col logo, features, install, link alla guida; tema chiaro/scuro, zero dipendenze) + workflow `pages.yml` che pubblica su push a `main` e auto-abilita Pages (`configure-pages` con `enablement: true`). URL: https://allan-nava.github.io/nomad-lens/. Esclusa dal `.vsix`.
+
 ## 0.2.2
 
 Hardening dall'audit interno.

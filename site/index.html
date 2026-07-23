@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nomad Lens — HashiCorp Nomad ops dentro VS Code</title>
+  <meta name="description" content="Estensione VS Code per operazioni HashiCorp Nomad: explorer cluster/job/allocation, plan diff repo↔running, log in streaming, incident bundle, snapshot. Zero dipendenze runtime." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ctext y='20' font-size='20'%3E%F0%9F%94%8D%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --green: #00CA8E; --green-2: #3FE0A8;
+      --bg: #f6f8fa; --panel: #ffffff; --ink: #0f2233; --muted: #5b6b7a;
+      --border: #e2e8f0; --shadow: 0 1px 3px rgba(15,34,51,.08), 0 8px 24px rgba(15,34,51,.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0a1420; --panel: #0f2233; --ink: #e8eef3; --muted: #93a4b3;
+        --border: #1c2f3f; --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    a { color: inherit; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+
+    header.hero { text-align: center; padding: 72px 20px 40px; }
+    .logo { width: 104px; height: 104px; filter: drop-shadow(0 8px 20px rgba(0,202,142,.25)); }
+    h1 { font-size: 2.6rem; margin: 18px 0 6px; letter-spacing: -0.02em; }
+    .tagline { font-size: 1.2rem; color: var(--muted); margin: 0 auto 28px; max-width: 620px; }
+    .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+      padding: 11px 20px; border-radius: 10px; font-weight: 600; border: 1px solid var(--border);
+      background: var(--panel); color: var(--ink); transition: transform .06s ease, box-shadow .2s ease;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+    .btn.primary {
+      background: linear-gradient(135deg, var(--green), var(--green-2)); color: #06231a; border: none;
+    }
+
+    section { padding: 28px 0; }
+    h2 { font-size: 1.5rem; margin: 0 0 18px; letter-spacing: -0.01em; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 20px; box-shadow: var(--shadow);
+    }
+    .card h3 { margin: 8px 0 6px; font-size: 1.1rem; }
+    .card p { margin: 0; color: var(--muted); font-size: .96rem; }
+    .card .ico { font-size: 1.6rem; }
+
+    pre {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px; overflow-x: auto; font-size: .88rem; box-shadow: var(--shadow);
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .note { color: var(--muted); font-size: .92rem; }
+
+    footer { text-align: center; color: var(--muted); padding: 40px 20px 64px; border-top: 1px solid var(--border); margin-top: 24px; }
+    footer a { color: var(--green); text-decoration: none; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; background: rgba(0,202,142,.12); color: var(--green); font-size: .8rem; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" aria-label="Nomad Lens">
+        <defs>
+          <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0F2233"/><stop offset="1" stop-color="#0A1420"/></linearGradient>
+          <linearGradient id="green" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00CA8E"/><stop offset="1" stop-color="#3FE0A8"/></linearGradient>
+          <radialGradient id="glass" cx="0.35" cy="0.30" r="0.85"><stop offset="0" stop-color="#00CA8E" stop-opacity="0.20"/><stop offset="1" stop-color="#00CA8E" stop-opacity="0.03"/></radialGradient>
+        </defs>
+        <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+        <line x1="322" y1="322" x2="418" y2="418" stroke="url(#green)" stroke-width="40" stroke-linecap="round"/>
+        <circle cx="228" cy="228" r="112" fill="url(#glass)"/>
+        <path d="M228 150 l67.5 39 v78 l-67.5 39 l-67.5 -39 v-78 z" fill="url(#green)"/>
+        <path d="M228 190 l33 19 v38 l-33 19 l-33 -19 v-38 z" fill="#0A1420" fill-opacity="0.92"/>
+        <path d="M228 190 l33 19 v38 l-33 19 l-33 -19 v-38 z" fill="none" stroke="url(#green)" stroke-width="6" stroke-linejoin="round"/>
+        <circle cx="228" cy="228" r="112" fill="none" stroke="url(#green)" stroke-width="28"/>
+        <circle cx="228" cy="228" r="112" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="4"/>
+      </svg>
+      <h1>Nomad Lens</h1>
+      <p class="tagline">Operazioni <strong>HashiCorp Nomad</strong> dentro VS Code — dove già scrivi i tuoi job spec. Zero dipendenze runtime.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://marketplace.visualstudio.com/items?itemName=allannava95.nomad-lens">Installa dal Marketplace</a>
+        <a class="btn" href="https://github.com/Allan-Nava/nomad-lens/blob/main/docs/GUIDE.md">📖 Guida d'uso</a>
+        <a class="btn" href="https://github.com/Allan-Nava/nomad-lens">GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section>
+      <h2>Cosa fa</h2>
+      <div class="grid">
+        <div class="card"><div class="ico">🗂️</div><h3>Cluster explorer</h3><p>Job con health reale (un <code>running</code> con alloc mancanti è <strong>degraded</strong>), allocation, task, nodi e deployment. Multi-cluster, uno switch.</p></div>
+        <div class="card"><div class="ico">🔀</div><h3>Plan diff repo↔running</h3><p>Apri un <code>.nomad</code>/<code>.hcl</code> e vedi il diff contro il job running <em>prima</em> di deployare. Parse HCL server-side.</p></div>
+        <div class="card"><div class="ico">📜</div><h3>Log in streaming</h3><p>Segui stdout/stderr di qualsiasi task in un Output channel dedicato — streaming, non polling. Più stream affiancati.</p></div>
+        <div class="card"><div class="ico">🚨</div><h3>Incident bundle</h3><p>Un click su un'alloc fallita: cartella <code>incidents/</code> con report (timeline eventi) e coda dei log allegata.</p></div>
+        <div class="card"><div class="ico">📸</div><h3>Cluster snapshot</h3><p>Report markdown di salute: problemi in cima, tabella completa sotto. Perfetto per il check del mattino.</p></div>
+        <div class="card"><div class="ico">🔒</div><h3>Sicuro per default</h3><p>Token ACL solo da env var, mai in settings/log. Read-only: nessuna azione mutativa senza conferma.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Installazione</h2>
+      <p>Dal Marketplace (publisher <span class="badge">allannava95</span>) o da <code>.vsix</code>:</p>
+      <pre><code>code --install-extension nomad-lens-&lt;versione&gt;.vsix</code></pre>
+      <p>Poi configura i cluster in <code>settings.json</code> (il token si legge da una env var, mai salvato):</p>
+      <pre><code>"nomadLens.clusters": [
+  { "name": "dev",  "address": "http://nomad-dev.example:4646" },
+  { "name": "prod", "address": "https://nomad.example:4646",
+    "namespace": "default", "tokenEnv": "NOMAD_TOKEN_PROD" }
+]</code></pre>
+      <p class="note">La <a href="https://github.com/Allan-Nava/nomad-lens/blob/main/docs/GUIDE.md">guida d'uso completa</a> copre explorer, plan, log, incident bundle, snapshot, troubleshooting e sicurezza.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      Nomad Lens — MIT · <a href="https://github.com/Allan-Nava/nomad-lens">github.com/Allan-Nava/nomad-lens</a><br/>
+      <span class="note">Non affiliato con HashiCorp. Nomad è un marchio di HashiCorp.</span>
+    </div>
+  </footer>
+</body>
+</html>
