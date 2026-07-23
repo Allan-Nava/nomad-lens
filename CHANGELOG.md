@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1
+
+Hardening dall'audit del codice recente.
+
+### Corretto
+
+- **`jobs()` non satura più l'API**: l'enrichment del `desired` (fetch `GET /v1/job/:id` per ogni job service, introdotto in 0.2.2) ora gira con concorrenza limitata (`JOB_FETCH_CONCURRENCY = 8`) invece che tutto in parallelo. Nuovo helper puro `mapPool`, testato (cap di concorrenza + ordine).
+- **Rilevamento OOM più stretto** (`taskEventIsOom`): non usa più `includes('oom')` nudo (matchava "zoom"/"room" → falsi positivi); ora richiede `out of memory` / `oom killed` / `oomkilled` o i `Details` espliciti.
+
 ## 0.3.0
 
 ### Aggiunto

@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
-import { NomadClient, JobSummary, PlanResult, desiredFromJob, tokenSentInClear, taskEventIsOom } from '../src/core/api';
+import { NomadClient, JobSummary, PlanResult, desiredFromJob, tokenSentInClear, taskEventIsOom, mapPool } from '../src/core/api';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from '../src/core/report';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 
@@ -145,11 +145,31 @@ async function main(): Promise<void> {
     assert.ok(bundle.files.some((f) => f.name === 'app.stderr.log' && f.content === 'boom\n'));
   });
 
-  await test('taskEventIsOom: riconosce OOM da details o messaggio', () => {
+  await test('taskEventIsOom: match stretto (no falsi da "zoom"/"room")', () => {
     assert.strictEqual(taskEventIsOom({ Details: { oom_killed: 'true' } }), true);
     assert.strictEqual(taskEventIsOom({ DisplayMessage: 'Out of memory (OOM) killed' }), true);
+    assert.strictEqual(taskEventIsOom({ DisplayMessage: 'OOMKilled' }), true);
     assert.strictEqual(taskEventIsOom({ Type: 'Terminated', DisplayMessage: 'Exit Code: 0' }), false);
+    assert.strictEqual(taskEventIsOom({ DisplayMessage: 'joined zoom room' }), false); // niente falso positivo
     assert.strictEqual(taskEventIsOom({}), false);
+  });
+
+  await test('mapPool: esegue tutto, in ordine, senza superare il limite di concorrenza', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const out = await mapPool([1, 2, 3, 4, 5, 6, 7], 3, async (n) => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return n * 2;
+    });
+    assert.deepStrictEqual(out, [2, 4, 6, 8, 10, 12, 14], 'risultati completi e in ordine');
+    assert.ok(maxInFlight <= 3, `concorrenza max ${maxInFlight} deve essere <= 3`);
+    assert.ok(maxInFlight >= 2, `deve girare in parallelo (max osservato ${maxInFlight})`);
+    // limite maggiore del numero di item: nessun crash, tutti eseguiti
+    assert.deepStrictEqual(await mapPool([1, 2], 10, async (n) => n + 1), [2, 3]);
+    assert.deepStrictEqual(await mapPool([], 4, async (n) => n), []);
   });
 
   await test('allocWarnings: OOM e restart loop oltre soglia (default 3)', () => {

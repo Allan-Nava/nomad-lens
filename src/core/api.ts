@@ -6,6 +6,9 @@
  *  irraggiungibile non deve lasciare l'albero appeso all'infinito. */
 export const REQUEST_TIMEOUT_MS = 8000;
 
+/** Max fetch `/v1/job/:id` in volo insieme durante l'enrichment del desired. */
+export const JOB_FETCH_CONCURRENCY = 8;
+
 function truncate(s: string, n = 500): string {
   return s.length > n ? `${s.slice(0, n)}…` : s;
 }
@@ -23,11 +26,36 @@ export interface NomadTaskEvent {
   Details?: Record<string, string>;
 }
 
-/** True se un evento task indica un kill per OOM (out of memory). Pura e testabile. */
+/** True se un evento task indica un kill per OOM (out of memory). Pura e testabile.
+ *  Match stretto: niente `includes('oom')` nudo (matcherebbe "zoom"/"room"). */
 export function taskEventIsOom(ev: NomadTaskEvent): boolean {
   if (ev.Details && (ev.Details.oom_killed === 'true' || ev.Details.oom === 'true')) return true;
   const msg = (ev.DisplayMessage ?? '').toLowerCase();
-  return msg.includes('out of memory') || msg.includes('oom');
+  return (
+    msg.includes('out of memory') ||
+    msg.includes('oom killed') ||
+    msg.includes('oom-killed') ||
+    msg.includes('oomkilled')
+  );
+}
+
+/** map con concorrenza limitata: esegue `fn` su tutti gli item ma al più
+ *  `limit` in volo insieme. Preserva l'ordine dei risultati. Pura e testabile. */
+export async function mapPool<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const size = Math.max(1, Math.min(limit, items.length));
+  const workers = Array.from({ length: size }, async () => {
+    for (let i = next++; i < items.length; i = next++) {
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 /** True se un token ACL verrebbe inviato in chiaro: presente, su http://,
@@ -157,22 +185,20 @@ export class NomadClient {
     // Desired autorevole = somma dei Count dei task group, dal job vero. Il summary
     // non lo contiene, quindi un job running-ma-sotto-scala senza alloc in coda
     // altrimenti risulterebbe "healthy". Solo per i job service (batch/system hanno
-    // semantiche di conteggio diverse); in parallelo, con fallback se la fetch fallisce.
-    await Promise.all(
-      list
-        .filter((s) => s.type === 'service')
-        .map(async (s) => {
-          try {
-            const full = await this.getJson<{ TaskGroups?: { Count?: number }[] | null }>(
-              `job/${encodeURIComponent(s.id)}`
-            );
-            const d = desiredFromJob(full);
-            if (d > 0) s.desired = d;
-          } catch {
-            /* mantieni il fallback dal summary */
-          }
-        })
-    );
+    // semantiche di conteggio diverse); concorrenza limitata per non sommergere
+    // l'API su cluster con molti job; fallback al summary se la fetch fallisce.
+    const services = list.filter((s) => s.type === 'service');
+    await mapPool(services, JOB_FETCH_CONCURRENCY, async (s) => {
+      try {
+        const full = await this.getJson<{ TaskGroups?: { Count?: number }[] | null }>(
+          `job/${encodeURIComponent(s.id)}`
+        );
+        const d = desiredFromJob(full);
+        if (d > 0) s.desired = d;
+      } catch {
+        /* mantieni il fallback dal summary */
+      }
+    });
     return list;
   }
 
