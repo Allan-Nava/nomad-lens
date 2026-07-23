@@ -5,72 +5,136 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Nomad Lens — HashiCorp Nomad ops dentro VS Code</title>
   <meta name="description" content="Estensione VS Code per operazioni HashiCorp Nomad: explorer cluster/job/allocation, plan diff repo↔running, log in streaming, incident bundle, snapshot. Zero dipendenze runtime." />
+  <meta property="og:title" content="Nomad Lens" />
+  <meta property="og:description" content="HashiCorp Nomad ops dentro VS Code — plan diff, log streaming, incident bundle, snapshot." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ctext y='20' font-size='20'%3E%F0%9F%94%8D%3C/text%3E%3C/svg%3E" />
   <style>
     :root {
-      --green: #00CA8E; --green-2: #3FE0A8;
-      --bg: #f6f8fa; --panel: #ffffff; --ink: #0f2233; --muted: #5b6b7a;
-      --border: #e2e8f0; --shadow: 0 1px 3px rgba(15,34,51,.08), 0 8px 24px rgba(15,34,51,.06);
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #0a1420; --panel: #0f2233; --ink: #e8eef3; --muted: #93a4b3;
-        --border: #1c2f3f; --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
-      }
+      --green: #00CA8E; --green-2: #3FE0A8; --green-glow: rgba(0,202,142,.35);
+      --bg: #070e17; --bg-2: #0a1420; --panel: rgba(19,37,54,.55); --panel-solid: #0f2233;
+      --ink: #e8eef3; --muted: #8fa3b3; --border: rgba(120,160,190,.14);
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     * { box-sizing: border-box; }
-    html { -webkit-text-size-adjust: 100%; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; color-scheme: dark; }
     body {
-      margin: 0; background: var(--bg); color: var(--ink);
-      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0; color: var(--ink); font: 16px/1.65 var(--sans);
+      background: var(--bg);
+      background-image:
+        radial-gradient(60rem 40rem at 15% -10%, rgba(0,202,142,.16), transparent 60%),
+        radial-gradient(50rem 40rem at 100% 0%, rgba(63,224,168,.10), transparent 55%),
+        radial-gradient(70rem 50rem at 50% 120%, rgba(0,202,142,.08), transparent 60%);
+      background-attachment: fixed;
+      overflow-x: hidden;
+    }
+    /* dot grid overlay */
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background-image: radial-gradient(rgba(143,163,179,.10) 1px, transparent 1px);
+      background-size: 26px 26px; mask-image: linear-gradient(180deg, #000, transparent 75%);
     }
     a { color: inherit; }
-    .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 0 22px; }
 
-    header.hero { text-align: center; padding: 72px 20px 40px; }
-    .logo { width: 104px; height: 104px; filter: drop-shadow(0 8px 20px rgba(0,202,142,.25)); }
-    h1 { font-size: 2.6rem; margin: 18px 0 6px; letter-spacing: -0.02em; }
-    .tagline { font-size: 1.2rem; color: var(--muted); margin: 0 auto 28px; max-width: 620px; }
+    @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @keyframes sheen { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+    .rise { animation: rise .7s cubic-bezier(.2,.7,.2,1) both; }
+    .rise.d1 { animation-delay: .08s; } .rise.d2 { animation-delay: .16s; }
+    .rise.d3 { animation-delay: .24s; } .rise.d4 { animation-delay: .32s; }
+
+    header.hero { text-align: center; padding: 88px 22px 46px; }
+    .logo { width: 116px; height: 116px; animation: floaty 6s ease-in-out infinite;
+            filter: drop-shadow(0 12px 34px var(--green-glow)); }
+    .eyebrow { font: 600 .8rem/1 var(--mono); letter-spacing: .22em; text-transform: uppercase;
+               color: var(--green); opacity: .9; margin: 22px 0 10px; }
+    h1 {
+      font-size: clamp(2.4rem, 6vw, 4rem); margin: 0 0 10px; letter-spacing: -0.03em; line-height: 1.02;
+      background: linear-gradient(100deg, #ffffff 15%, var(--green-2) 55%, var(--green) 85%);
+      background-size: 200% auto; -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; animation: sheen 8s linear infinite alternate;
+    }
+    .tagline { font-size: 1.22rem; color: var(--muted); margin: 0 auto 30px; max-width: 640px; }
+    .tagline strong { color: var(--ink); }
     .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
     .btn {
-      display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
-      padding: 11px 20px; border-radius: 10px; font-weight: 600; border: 1px solid var(--border);
-      background: var(--panel); color: var(--ink); transition: transform .06s ease, box-shadow .2s ease;
+      display: inline-flex; align-items: center; gap: 8px; text-decoration: none; cursor: pointer;
+      padding: 12px 22px; border-radius: 12px; font-weight: 650; font-size: .98rem;
+      border: 1px solid var(--border); background: var(--panel); color: var(--ink);
+      backdrop-filter: blur(8px); transition: transform .08s ease, box-shadow .25s ease, border-color .25s ease;
     }
-    .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+    .btn:hover { transform: translateY(-2px); border-color: var(--green); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
     .btn.primary {
       background: linear-gradient(135deg, var(--green), var(--green-2)); color: #06231a; border: none;
+      box-shadow: 0 8px 30px var(--green-glow);
     }
+    .btn.primary:hover { box-shadow: 0 12px 40px var(--green-glow); }
 
-    section { padding: 28px 0; }
-    h2 { font-size: 1.5rem; margin: 0 0 18px; letter-spacing: -0.01em; }
+    .pills { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 26px; }
+    .pill { font: 600 .76rem/1 var(--mono); letter-spacing: .04em; color: var(--muted);
+            border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; background: rgba(10,20,32,.5); }
+    .pill b { color: var(--green); }
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    /* terminal mock */
+    .term-wrap { padding: 30px 22px 8px; }
+    .term {
+      max-width: 760px; margin: 0 auto; border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+      background: linear-gradient(180deg, rgba(12,24,37,.92), rgba(8,17,27,.96));
+      box-shadow: 0 30px 80px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
+    }
+    .term-bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot.r { background: #ff5f56; } .dot.y { background: #ffbd2e; } .dot.g { background: #27c93f; }
+    .term-title { margin-left: 10px; font: 600 .82rem/1 var(--mono); color: var(--muted); }
+    .term pre { margin: 0; padding: 20px; font: .86rem/1.7 var(--mono); color: #cfe3d8; overflow-x: auto; }
+    .term .c { color: var(--green); } .term .m { color: var(--muted); } .term .w { color: #ffbd6b; }
+    .term .o { color: #ff8a80; } .term .k { color: #9fe8cf; }
+
+    section { padding: 40px 0; }
+    h2 { font-size: 1.65rem; margin: 0 0 6px; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); margin: 0 0 22px; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; }
     .card {
-      background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
-      padding: 20px; box-shadow: var(--shadow);
+      position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+      padding: 22px; backdrop-filter: blur(10px); overflow: hidden;
+      transition: transform .15s ease, border-color .25s ease, box-shadow .25s ease;
     }
-    .card h3 { margin: 8px 0 6px; font-size: 1.1rem; }
+    .card::after {
+      content: ""; position: absolute; inset: 0; border-radius: 16px; padding: 1px; pointer-events: none;
+      background: linear-gradient(135deg, var(--green), transparent 40%); opacity: 0;
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude; transition: opacity .25s ease;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 18px 46px rgba(0,0,0,.4); }
+    .card:hover::after { opacity: 1; }
+    .card .ico { font-size: 1.7rem; }
+    .card h3 { margin: 10px 0 6px; font-size: 1.12rem; }
     .card p { margin: 0; color: var(--muted); font-size: .96rem; }
-    .card .ico { font-size: 1.6rem; }
+    .card code { font-family: var(--mono); color: var(--green-2); font-size: .86em; }
 
-    pre {
-      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-      padding: 16px; overflow-x: auto; font-size: .88rem; box-shadow: var(--shadow);
-      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    pre.code {
+      background: rgba(8,17,27,.85); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px; overflow-x: auto; font: .88rem/1.6 var(--mono); color: #cfe3d8;
     }
-    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .note { color: var(--muted); font-size: .92rem; }
+    pre.code .k { color: var(--green-2); }
+    .note { color: var(--muted); font-size: .93rem; }
+    .note a, footer a { color: var(--green); text-decoration: none; }
+    .note a:hover, footer a:hover { text-decoration: underline; }
 
-    footer { text-align: center; color: var(--muted); padding: 40px 20px 64px; border-top: 1px solid var(--border); margin-top: 24px; }
-    footer a { color: var(--green); text-decoration: none; }
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; background: rgba(0,202,142,.12); color: var(--green); font-size: .8rem; font-weight: 600; }
+    footer { text-align: center; color: var(--muted); padding: 48px 22px 72px;
+             border-top: 1px solid var(--border); margin-top: 30px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; scroll-behavior: auto; }
+    }
   </style>
 </head>
 <body>
   <header class="hero">
     <div class="wrap">
-      <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" aria-label="Nomad Lens">
+      <svg class="logo rise" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" aria-label="Nomad Lens">
         <defs>
           <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0F2233"/><stop offset="1" stop-color="#0A1420"/></linearGradient>
           <linearGradient id="green" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00CA8E"/><stop offset="1" stop-color="#3FE0A8"/></linearGradient>
@@ -85,39 +149,69 @@
         <circle cx="228" cy="228" r="112" fill="none" stroke="url(#green)" stroke-width="28"/>
         <circle cx="228" cy="228" r="112" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="4"/>
       </svg>
-      <h1>Nomad Lens</h1>
-      <p class="tagline">Operazioni <strong>HashiCorp Nomad</strong> dentro VS Code — dove già scrivi i tuoi job spec. Zero dipendenze runtime.</p>
-      <div class="cta">
-        <a class="btn primary" href="https://marketplace.visualstudio.com/items?itemName=allannava95.nomad-lens">Installa dal Marketplace</a>
+      <p class="eyebrow rise d1">HashiCorp Nomad · VS Code</p>
+      <h1 class="rise d1">Nomad Lens</h1>
+      <p class="tagline rise d2">Le operazioni <strong>Nomad</strong> dove già scrivi i tuoi job spec: explorer, plan diff, log, incident. <strong>Zero dipendenze runtime.</strong></p>
+      <div class="cta rise d3">
+        <a class="btn primary" href="https://marketplace.visualstudio.com/items?itemName=allannava95.nomad-lens">⬇ Installa dal Marketplace</a>
         <a class="btn" href="https://github.com/Allan-Nava/nomad-lens/blob/main/docs/GUIDE.md">📖 Guida d'uso</a>
-        <a class="btn" href="https://github.com/Allan-Nava/nomad-lens">GitHub</a>
+        <a class="btn" href="https://github.com/Allan-Nava/nomad-lens">★ GitHub</a>
+      </div>
+      <div class="pills rise d4">
+        <span class="pill"><b>0</b> runtime deps</span>
+        <span class="pill">API HTTP Nomad</span>
+        <span class="pill">token <b>solo</b> da env</span>
+        <span class="pill">MIT</span>
       </div>
     </div>
   </header>
 
+  <div class="term-wrap">
+    <div class="term rise d2">
+      <div class="term-bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="term-title">nomad snapshot — prod</span>
+      </div>
+<pre><span class="m"># Nomad snapshot — prod</span>
+<span class="k">jobs totali</span> : 24  (problemi: <span class="w">2</span>)
+<span class="k">nodi       </span> : 6   (non-ready/drain: <span class="w">1</span>)
+<span class="k">deployments</span> : 3   (non healthy: <span class="w">1</span>)
+
+<span class="w">## ⚠ Da guardare</span>
+| Job        | Stato          | Alloc | Failed |
+| packager   | <span class="w">🟠 degraded</span>    | 2/3   | <span class="o">1</span>      |
+| ingest     | <span class="w">🟡 pending</span>     | 0/2   | 0      |
+
+<span class="c">$</span> plan  <span class="m"># diff repo ↔ running, prima di deployare</span>
+<span class="c">~</span> Count: <span class="o">2</span> → <span class="c">3</span>
+  <span class="c">~</span> image: <span class="o">"nginx:1.25"</span> → <span class="c">"nginx:1.27"</span></pre>
+    </div>
+  </div>
+
   <main class="wrap">
     <section>
       <h2>Cosa fa</h2>
+      <p class="sub">Sei feature, un pannello. Tutto read-only e sicuro per default.</p>
       <div class="grid">
-        <div class="card"><div class="ico">🗂️</div><h3>Cluster explorer</h3><p>Job con health reale (un <code>running</code> con alloc mancanti è <strong>degraded</strong>), allocation, task, nodi e deployment. Multi-cluster, uno switch.</p></div>
+        <div class="card"><div class="ico">🗂️</div><h3>Cluster explorer</h3><p>Job con health reale — un <code>running</code> con alloc mancanti è <b>degraded</b> — allocation, task, nodi, deployment. Multi-cluster, uno switch.</p></div>
         <div class="card"><div class="ico">🔀</div><h3>Plan diff repo↔running</h3><p>Apri un <code>.nomad</code>/<code>.hcl</code> e vedi il diff contro il job running <em>prima</em> di deployare. Parse HCL server-side.</p></div>
-        <div class="card"><div class="ico">📜</div><h3>Log in streaming</h3><p>Segui stdout/stderr di qualsiasi task in un Output channel dedicato — streaming, non polling. Più stream affiancati.</p></div>
+        <div class="card"><div class="ico">📜</div><h3>Log in streaming</h3><p>stdout/stderr di qualsiasi task in un Output channel dedicato — streaming, non polling. Più stream affiancati.</p></div>
         <div class="card"><div class="ico">🚨</div><h3>Incident bundle</h3><p>Un click su un'alloc fallita: cartella <code>incidents/</code> con report (timeline eventi) e coda dei log allegata.</p></div>
         <div class="card"><div class="ico">📸</div><h3>Cluster snapshot</h3><p>Report markdown di salute: problemi in cima, tabella completa sotto. Perfetto per il check del mattino.</p></div>
-        <div class="card"><div class="ico">🔒</div><h3>Sicuro per default</h3><p>Token ACL solo da env var, mai in settings/log. Read-only: nessuna azione mutativa senza conferma.</p></div>
+        <div class="card"><div class="ico">🔒</div><h3>Sicuro per default</h3><p>Token ACL solo da env var, mai in settings/log. Avviso se un token viaggia in chiaro su http.</p></div>
       </div>
     </section>
 
     <section>
       <h2>Installazione</h2>
-      <p>Dal Marketplace (publisher <span class="badge">allannava95</span>) o da <code>.vsix</code>:</p>
-      <pre><code>code --install-extension nomad-lens-&lt;versione&gt;.vsix</code></pre>
-      <p>Poi configura i cluster in <code>settings.json</code> (il token si legge da una env var, mai salvato):</p>
-      <pre><code>"nomadLens.clusters": [
+      <p class="sub">Dal Marketplace (publisher <code>allannava95</code>) o da <code>.vsix</code>.</p>
+      <pre class="code">code --install-extension nomad-lens-&lt;versione&gt;.vsix</pre>
+      <p class="sub" style="margin-top:18px">Poi configura i cluster in <code>settings.json</code> — il token si legge da una env var, mai salvato:</p>
+      <pre class="code"><span class="k">"nomadLens.clusters"</span>: [
   { "name": "dev",  "address": "http://nomad-dev.example:4646" },
   { "name": "prod", "address": "https://nomad.example:4646",
     "namespace": "default", "tokenEnv": "NOMAD_TOKEN_PROD" }
-]</code></pre>
+]</pre>
       <p class="note">La <a href="https://github.com/Allan-Nava/nomad-lens/blob/main/docs/GUIDE.md">guida d'uso completa</a> copre explorer, plan, log, incident bundle, snapshot, troubleshooting e sicurezza.</p>
     </section>
   </main>

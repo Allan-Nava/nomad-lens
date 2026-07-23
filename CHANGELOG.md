@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4
+
+### Modificato
+
+- Restyling della landing GitHub Pages (`site/index.html`): tema dark con accento neon-green, sfondo aurora + dot-grid, titolo con gradiente animato, logo con glow, mock "terminale" con snapshot/plan di esempio, card glass con bordo luminoso all'hover. Sempre self-contained e zero dipendenze; animazioni disattivate con `prefers-reduced-motion`.
+
 ## 0.2.3
 
 ### Aggiunto
