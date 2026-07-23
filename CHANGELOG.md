@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.2
+
+### Aggiunto
+
+- Logo dell'estensione (`media/logo.png`, 512px): lente d'ingrandimento che incornicia l'esagono Nomad, verde brand su squircle scuro. Impostato come `icon` in `package.json` per il Marketplace. Sorgente in `media/logo.svg`.
+
+### Modificato
+
+- `.vscodeignore` ripulito: il `.vsix` non spedisce piu' file interni (`CLAUDE.md`, `AGENTS.md`, `BACKLOG.md`, `.claude/`, `scripts/`, source map, `package-lock.json`). Ora contiene solo runtime + asset Marketplace.
+
 ## 0.1.1
 
 ### Aggiunto

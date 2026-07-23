@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0F2233"/>
+      <stop offset="1" stop-color="#0A1420"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00CA8E"/>
+      <stop offset="1" stop-color="#3FE0A8"/>
+    </linearGradient>
+    <radialGradient id="glass" cx="0.35" cy="0.30" r="0.85">
+      <stop offset="0" stop-color="#00CA8E" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#00CA8E" stop-opacity="0.03"/>
+    </radialGradient>
+  </defs>
+
+  <!-- squircle background -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- magnifying glass handle -->
+  <line x1="322" y1="322" x2="418" y2="418" stroke="url(#green)" stroke-width="40" stroke-linecap="round"/>
+
+  <!-- lens glass -->
+  <circle cx="228" cy="228" r="112" fill="url(#glass)"/>
+
+  <!-- nomad hexagon inside the lens -->
+  <path d="M228 150 l67.5 39 v78 l-67.5 39 l-67.5 -39 v-78 z"
+        fill="url(#green)"/>
+  <path d="M228 190 l33 19 v38 l-33 19 l-33 -19 v-38 z"
+        fill="#0A1420" fill-opacity="0.92"/>
+  <path d="M228 190 l33 19 v38 l-33 19 l-33 -19 v-38 z"
+        fill="none" stroke="url(#green)" stroke-width="6" stroke-linejoin="round"/>
+
+  <!-- lens ring on top -->
+  <circle cx="228" cy="228" r="112" fill="none" stroke="url(#green)" stroke-width="28"/>
+  <circle cx="228" cy="228" r="112" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="4"/>
+</svg>
