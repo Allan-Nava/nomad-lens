@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "allan-nava",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -45,25 +45,63 @@
       ]
     },
     "commands": [
-      { "command": "nomadLens.refresh", "title": "Nomad Lens: Refresh", "icon": "$(refresh)" },
-      { "command": "nomadLens.selectCluster", "title": "Nomad Lens: Select Cluster" },
-      { "command": "nomadLens.followLogs", "title": "Nomad Lens: Follow Task Logs" },
-      { "command": "nomadLens.stopLogs", "title": "Nomad Lens: Stop Following Logs" },
-      { "command": "nomadLens.planFile", "title": "Nomad Lens: Plan Current Job File (diff vs running)" },
-      { "command": "nomadLens.incidentBundle", "title": "Nomad Lens: Export Incident Bundle for Allocation" },
-      { "command": "nomadLens.snapshot", "title": "Nomad Lens: Cluster Snapshot Report" }
+      {
+        "command": "nomadLens.refresh",
+        "title": "Nomad Lens: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "nomadLens.selectCluster",
+        "title": "Nomad Lens: Select Cluster"
+      },
+      {
+        "command": "nomadLens.followLogs",
+        "title": "Nomad Lens: Follow Task Logs"
+      },
+      {
+        "command": "nomadLens.stopLogs",
+        "title": "Nomad Lens: Stop Following Logs"
+      },
+      {
+        "command": "nomadLens.planFile",
+        "title": "Nomad Lens: Plan Current Job File (diff vs running)"
+      },
+      {
+        "command": "nomadLens.incidentBundle",
+        "title": "Nomad Lens: Export Incident Bundle for Allocation"
+      },
+      {
+        "command": "nomadLens.snapshot",
+        "title": "Nomad Lens: Cluster Snapshot Report"
+      }
     ],
     "menus": {
       "view/title": [
-        { "command": "nomadLens.refresh", "when": "view == nomadLens.explorer", "group": "navigation" },
-        { "command": "nomadLens.snapshot", "when": "view == nomadLens.explorer" }
+        {
+          "command": "nomadLens.refresh",
+          "when": "view == nomadLens.explorer",
+          "group": "navigation"
+        },
+        {
+          "command": "nomadLens.snapshot",
+          "when": "view == nomadLens.explorer"
+        }
       ],
       "view/item/context": [
-        { "command": "nomadLens.followLogs", "when": "view == nomadLens.explorer && viewItem == task" },
-        { "command": "nomadLens.incidentBundle", "when": "view == nomadLens.explorer && viewItem =~ /^alloc/" }
+        {
+          "command": "nomadLens.followLogs",
+          "when": "view == nomadLens.explorer && viewItem == task"
+        },
+        {
+          "command": "nomadLens.incidentBundle",
+          "when": "view == nomadLens.explorer && viewItem =~ /^alloc/"
+        }
       ],
       "editor/title/context": [
-        { "command": "nomadLens.planFile", "when": "resourceExtname == .nomad || resourceExtname == .hcl" }
+        {
+          "command": "nomadLens.planFile",
+          "when": "resourceExtname == .nomad || resourceExtname == .hcl"
+        }
       ]
     },
     "configuration": {
@@ -74,15 +112,31 @@
           "items": {
             "type": "object",
             "properties": {
-              "name": { "type": "string" },
-              "address": { "type": "string", "description": "http(s)://host:4646" },
-              "namespace": { "type": "string" },
-              "tokenEnv": { "type": "string", "description": "Name of the env var holding the ACL token (never store tokens in settings)" }
+              "name": {
+                "type": "string"
+              },
+              "address": {
+                "type": "string",
+                "description": "http(s)://host:4646"
+              },
+              "namespace": {
+                "type": "string"
+              },
+              "tokenEnv": {
+                "type": "string",
+                "description": "Name of the env var holding the ACL token (never store tokens in settings)"
+              }
             },
-            "required": ["name", "address"]
+            "required": [
+              "name",
+              "address"
+            ]
           },
           "default": [
-            { "name": "local", "address": "http://127.0.0.1:4646" }
+            {
+              "name": "local",
+              "address": "http://127.0.0.1:4646"
+            }
           ],
           "description": "Nomad clusters. Tokens are read from the env var named in tokenEnv."
         }
@@ -100,6 +154,6 @@
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.24.0",
-    "typescript": "^5.5.0"
+    "typescript": "^7.0.2"
   }
 }

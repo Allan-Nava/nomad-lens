@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6
+
+### Modificato
+
+- `typescript` aggiornato a `^7.0.2` (compilatore nativo, dependabot #16). Solo toolchain di typecheck: il bundle resta esbuild. Verificato con `npm ci` pulito che il lockfile porta tutti i binari nativi per-piattaforma (incluso `@typescript/typescript-linux-x64` per la CI) e che `tsc --noEmit` + test + build passano. Il fallimento della PR era dovuto solo alla base pre-fix `types` (0.1.3), non al bump.
+
 ## 0.1.5
 
 ### Aggiunto
