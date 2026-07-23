@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { ClusterConfig, NomadClient, JobSummary, AllocSummary, tokenSentInClear } from './core/api';
+import { ClusterConfig, NomadClient, JobSummary, AllocSummary, tokenSentInClear, mapPool } from './core/api';
+import { grepLogs, renderGrepReport, LogSource } from './core/grep';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
@@ -387,6 +388,44 @@ export function activate(context: vscode.ExtensionContext): void {
         tree.refresh();
       } catch (err) {
         void vscode.window.showErrorMessage(`Start job fallito — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.grepJob', async (node?: { job: JobSummary }) => {
+      if (!client || !node) return;
+      const query = await vscode.window.showInputBox({
+        prompt: `Cerca nei log di tutte le allocation di ${node.job.id}`,
+        placeHolder: 'stringa da cercare (case-insensitive)',
+      });
+      if (!query) return;
+      const active = client;
+      try {
+        const allocs = await active.allocations(node.job.id);
+        const targets = allocs.flatMap((a) =>
+          a.tasks.flatMap((task) =>
+            (['stdout', 'stderr'] as const).map((type) => ({ alloc: a, task, type }))
+          )
+        );
+        if (!targets.length) {
+          void vscode.window.showInformationMessage(`Nessuna allocation con log per ${node.job.id}.`);
+          return;
+        }
+        const sources: LogSource[] = await mapPool(targets, 8, async (t) => ({
+          alloc: t.alloc.id,
+          task: t.task,
+          type: t.type,
+          text: await active.logsTail(t.alloc.id, t.task, t.type, 65536),
+        }));
+        const matches = grepLogs(sources, query);
+        if (!matches.length) {
+          void vscode.window.showInformationMessage(`Nessun match per "${query}" in ${node.job.id}.`);
+          return;
+        }
+        const md = renderGrepReport(node.job.id, query, matches);
+        const doc = await vscode.workspace.openTextDocument({ content: md, language: 'markdown' });
+        await vscode.window.showTextDocument(doc, { preview: true });
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Grep cross-alloc fallito — ${err}`);
       }
     })
   );

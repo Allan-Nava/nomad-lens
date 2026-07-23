@@ -17,7 +17,7 @@ Feature e infrastruttura spedite nella serie 0.2.x.
 - [x] **NOM-1 — Restart storm / OOM detector**: le allocation con restart loop (≥3) o kill da OOM sono evidenziate nel tree (icona ⚠ + descrizione), dedotto dagli eventi task già presenti nella lista allocation (nessuna richiesta extra). Logica pura `taskEventIsOom`/`allocWarnings`, testata.
 - [x] **NOM-2 — Deployment watch**: poller dei deployment attivi → progress (healthy/desired, canary) in status bar + notifica su successo/fallimento e su blocco (healthy fermo oltre soglia). Aggregazione/stato puri in `core/deploy.ts` (testati). Settings `deploymentWatch`/`deploymentPollSeconds`/`deploymentStallSeconds`.
 - [x] **NOM-3 — Azioni con conferma**: restart allocation, stop/start job dal menu contestuale del tree. Distruttive → doppia conferma modale; stop job → conferma digitando l'id; mai un bottone di default. Metadati puri in `core/actions.ts` (testati); stopJob verificato in integrazione.
-- [ ] **NOM-4 — Grep cross-alloc**: cerca una stringa nei log di tutte le allocation di un job in parallelo, risultati con link.
+- [x] **NOM-4 — Grep cross-alloc**: comando "Grep Logs Across Allocations" sul job → cerca una stringa nei log (stdout+stderr) di tutte le allocation in parallelo (pool a 8), report markdown raggruppato per alloc con posizione `task/type:riga`. Logica pura `grepLogs`/`renderGrepReport` in `core/grep.ts` (testata).
 
 ## v0.4 — Drift
 

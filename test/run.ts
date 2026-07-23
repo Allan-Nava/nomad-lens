@@ -9,6 +9,7 @@ import { NomadClient, JobSummary, PlanResult, desiredFromJob, tokenSentInClear, 
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from '../src/core/report';
 import { ACTIONS, confirmMessage } from '../src/core/actions';
 import { aggregateDeployment, deployStatus, deployStatusBar } from '../src/core/deploy';
+import { grepLogs, renderGrepReport, LogSource } from '../src/core/grep';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 
 // Spec di riferimento usato dai test di integrazione. A livello di modulo cosi'
@@ -192,6 +193,36 @@ async function main(): Promise<void> {
     assert.deepStrictEqual(allocWarnings({ restarts: 5, oom: false }), ['restart loop ×5']);
     assert.deepStrictEqual(allocWarnings({ restarts: 0, oom: true }), ['OOM']);
     assert.deepStrictEqual(allocWarnings({ restarts: 4, oom: true }), ['OOM', 'restart loop ×4']);
+  });
+
+  await test('grepLogs: match case-insensitive di default, numeri di riga, opzione sensibile', () => {
+    const sources: LogSource[] = [
+      { alloc: 'aaaa1111', task: 'app', type: 'stdout', text: 'ok\nERROR boom\nok again' },
+      { alloc: 'bbbb2222', task: 'app', type: 'stderr', text: 'nothing here\nerror lower' },
+    ];
+    const m = grepLogs(sources, 'error');
+    assert.strictEqual(m.length, 2, 'match su ERROR e error (case-insensitive)');
+    assert.deepStrictEqual(
+      m.map((x) => [x.alloc, x.type, x.line]),
+      [['aaaa1111', 'stdout', 2], ['bbbb2222', 'stderr', 2]]
+    );
+    // case sensitive: solo "error" minuscolo
+    const cs = grepLogs(sources, 'error', { caseSensitive: true });
+    assert.strictEqual(cs.length, 1);
+    assert.strictEqual(cs[0].alloc, 'bbbb2222');
+    // query vuota → nessun match
+    assert.deepStrictEqual(grepLogs(sources, ''), []);
+  });
+
+  await test('renderGrepReport: intestazione, conteggi e raggruppamento per alloc', () => {
+    const md = renderGrepReport('packager', 'timeout', [
+      { alloc: 'aaaa1111', task: 'app', type: 'stdout', line: 5, text: '  timeout waiting  ' },
+      { alloc: 'aaaa1111', task: 'app', type: 'stderr', line: 9, text: 'timeout again' },
+    ]);
+    assert.ok(md.includes('grep "timeout" — packager'));
+    assert.ok(md.includes('2 match in 1 allocation.'));
+    assert.ok(md.includes('## alloc aaaa1111'));
+    assert.ok(md.includes('`app/stdout:5` timeout waiting'), 'riga trimmata con posizione');
   });
 
   await test('deploy: aggrega i task group, deriva stato e riga status bar', () => {

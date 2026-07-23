@@ -107,6 +107,10 @@ Con un deployment attivo, la status bar mostra il progresso in tempo reale — `
 
 Settings: `nomadLens.deploymentWatch` (on/off, default on), `nomadLens.deploymentPollSeconds` (default 5), `nomadLens.deploymentStallSeconds` (default 90).
 
+## 6d. Grep cross-allocation
+
+Click destro su un job → **Grep Logs Across Allocations**: digita una stringa e Nomad Lens cerca (case-insensitive) nei log `stdout`+`stderr` di **tutte** le allocation del job, in parallelo. Il risultato è un report markdown raggruppato per allocazione, con posizione `task/type:riga` per ogni match. Utile per "chi ha loggato questo errore?" su un job con molte istanze.
+
 ## 7. Snapshot del cluster
 
 **Nomad Lens: Cluster Snapshot Report** genera un markdown di salute:

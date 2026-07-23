@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0
+
+Completa la milestone v0.3 — Daily driver.
+
+### Aggiunto
+
+- **Grep cross-allocation** (NOM-4): comando *Grep Logs Across Allocations* sul job — cerca una stringa (case-insensitive) nei log `stdout`+`stderr` di tutte le allocation in parallelo (pool a concorrenza 8), e apre un report markdown raggruppato per allocazione con posizione `task/type:riga`. Logica pura `grepLogs`/`renderGrepReport` in `core/grep.ts`, testata.
+
 ## 0.5.0
 
 ### Aggiunto
