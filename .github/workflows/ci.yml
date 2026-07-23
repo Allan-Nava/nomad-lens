@@ -47,7 +47,7 @@ jobs:
           test "$TAG" = "$PKG" || { echo "::error::tag v$TAG != package.json $PKG"; exit 1; }
       - run: npx @vscode/vsce package --no-dependencies
       - name: Upload .vsix to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: "*.vsix"
 
