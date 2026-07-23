@@ -17,4 +17,6 @@ Sorgente unica dei todo. Id stabili `NOM-n`; spuntare, non cancellare.
 
 ## Rilascio
 
-- [ ] **NOM-8 — Publish sul Marketplace**: publisher reale in `package.json`, icona PNG 128px, screenshot/GIF nel README, `vsce publish`.
+- [ ] **NOM-8 — Asset per il Marketplace**: publisher reale in `package.json`, icona PNG 128px, screenshot/GIF nel README (prerequisiti manuali prima del primo publish).
+- [x] **NOM-9 — Publish automatico su tag**: job `publish` in `ci.yml` che su tag `v*` fa `vsce publish` (Marketplace) + `ovsx publish` (Open VSX, opzionale), con guard tag == `package.json`. Richiede secret `VSCE_PAT` (e opz. `OVSX_PAT`).
+- [x] **NOM-10 — Backlog/milestone sync**: workflow `backlog-sync.yml` + `scripts/backlog-sync.mjs` che rende milestone e issue GitHub un mirror di `BACKLOG.md` (id `NOM-n` ancorati via marker, idempotente).

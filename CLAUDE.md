@@ -42,6 +42,7 @@ F5 apre l'Extension Host. L'integrazione richiede `nomad` nel PATH (`brew instal
 
 ## Puntatori
 
-- Backlog: `BACKLOG.md` · CI: `.github/workflows/ci.yml` (test su push/PR; tag `v*` → vsix in release)
+- Backlog: `BACKLOG.md` · CI: `.github/workflows/ci.yml` (test su push/PR; tag `v*` → vsix in release + `vsce publish`/`ovsx publish`, secret `VSCE_PAT`/`OVSX_PAT`, guard tag==version)
+- Backlog sync: `.github/workflows/backlog-sync.yml` + `scripts/backlog-sync.mjs` (mirror `BACKLOG.md` → milestone/issue GitHub, idempotente, marker `<!-- backlog:NOM-n -->`; il file resta sorgente unica)
 - Repo gemelli (stesso scaffold/pattern): `~/projects/github.com/ansible-vars-lens`, `~/projects/github.com/nats-lens`
 - Runbook operativo di riferimento (pattern preflight/dry-run/canary): `~/projects/hiway/devops_hiway/CLAUDE.md`

@@ -1,0 +1,39 @@
+name: Backlog Sync
+
+# Rende GitHub (milestone + issue) un mirror di BACKLOG.md.
+# Sorgente unica: il file. Vedi scripts/backlog-sync.mjs.
+
+on:
+  push:
+    branches: ["main", "master"]
+    paths:
+      - "BACKLOG.md"
+      - "scripts/backlog-sync.mjs"
+      - ".github/workflows/backlog-sync.yml"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Solo parsing, nessuna scrittura"
+        type: boolean
+        default: false
+
+permissions:
+  issues: write
+
+concurrency:
+  group: backlog-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Sync backlog -> milestones + issues
+        run: node scripts/backlog-sync.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}

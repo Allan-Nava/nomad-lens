@@ -34,6 +34,18 @@ npm run build        # bundle to dist/
 
 The core (API client + report renderers) has no VS Code dependency and lives in `src/core/`. The integration test spins up `nomad agent -dev` on a random port, registers a sample job, and verifies plan diffs; if `nomad` is not installed the integration tests are skipped. Zero runtime dependencies: the Nomad HTTP API is consumed with Node's native fetch.
 
+## Release & automation
+
+Everything is driven by CI (`.github/workflows/`):
+
+- **Publish on tag** — pushing a `v*` tag runs the full test suite, packages the `.vsix` onto the GitHub Release, then publishes to the **VS Code Marketplace** (`vsce publish`) and, if configured, **Open VSX** (`ovsx publish`). A guard aborts if the tag doesn't match `version` in `package.json`.
+  - Required secret: `VSCE_PAT` — an Azure DevOps Personal Access Token for the Marketplace publisher named in `package.json` (`publisher`). See the [vsce publishing docs](https://code.visualstudio.com/api/working-with-extensions/publishing-extension).
+  - Optional secret: `OVSX_PAT` — an [Open VSX](https://open-vsx.org) token. Omit it and that step is skipped.
+  - The `publish` job uses the `marketplace` [environment](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment) — add required reviewers there if you want a manual approval gate before each store publish.
+- **Backlog sync** — editing `BACKLOG.md` on `main` mirrors it to GitHub **milestones + issues** (`scripts/backlog-sync.mjs`, zero deps, native fetch). Each `## …` heading becomes a milestone, each `NOM-n` item an issue (anchored by a hidden `<!-- backlog:NOM-n -->` marker so retitling never duplicates). Checked items close their issue; a fully-checked section closes its milestone. `BACKLOG.md` stays the single source of truth — GitHub is a read-only mirror. Run it manually (with a dry-run toggle) from the Actions tab.
+
+To cut a release: bump `version` in `package.json`, add a `CHANGELOG.md` entry, commit, then `git tag -a vX.Y.Z -m "Release X.Y.Z" && git push --follow-tags`.
+
 ## License
 
 MIT
