@@ -7,6 +7,7 @@ import * as path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { NomadClient, JobSummary, PlanResult } from '../src/core/api';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth } from '../src/core/report';
+import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 
 // Spec di riferimento usato dai test di integrazione. A livello di modulo cosi'
 // da poterlo lintare anche quando `nomad` non c'e' (integrazione skippata).
@@ -141,6 +142,34 @@ async function main(): Promise<void> {
     assert.ok(bundle.markdown.includes('restarts: 4'));
     assert.strictEqual(bundle.files.length, 2);
     assert.ok(bundle.files.some((f) => f.name === 'app.stderr.log' && f.content === 'boom\n'));
+  });
+
+  await test('vulncheck auto-fix: interviene solo su "Prompt", con scope e target giusti', () => {
+    const base: VulncheckState = {
+      goExtensionInstalled: true,
+      autoFixEnabled: true,
+      fixTarget: 'Off',
+      effectiveValue: 'Prompt',
+    };
+    // caso tipico: default implicito "Prompt", nessun override -> fix globale a Off
+    assert.deepStrictEqual(decideVulncheckFix(base), {
+      action: 'fix',
+      from: 'Prompt',
+      to: 'Off',
+      scope: 'global',
+    });
+    // "Prompt" imposto a livello workspace -> si corregge nello stesso scope
+    const ws = decideVulncheckFix({ ...base, workspaceValue: 'Prompt' });
+    assert.strictEqual(ws.action === 'fix' ? ws.scope : undefined, 'workspace');
+    // target configurabile
+    const imp = decideVulncheckFix({ ...base, fixTarget: 'Imports' });
+    assert.strictEqual(imp.action === 'fix' ? imp.to : undefined, 'Imports');
+    // no-op: valore gia' valido, auto-fix off, Go extension assente
+    assert.strictEqual(decideVulncheckFix({ ...base, effectiveValue: 'Off' }).action, 'none');
+    assert.strictEqual(decideVulncheckFix({ ...base, effectiveValue: 'Imports' }).action, 'none');
+    assert.strictEqual(decideVulncheckFix({ ...base, effectiveValue: undefined }).action, 'none');
+    assert.strictEqual(decideVulncheckFix({ ...base, autoFixEnabled: false }).action, 'none');
+    assert.strictEqual(decideVulncheckFix({ ...base, goExtensionInstalled: false }).action, 'none');
   });
 
   // Regressione: HCL2 (Nomad >= 1.x) rifiuta un blocco single-line con piu' di

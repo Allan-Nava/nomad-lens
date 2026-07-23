@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+### Aggiunto
+
+- Auto-fix di `go.diagnostic.vulncheck`: all'attivazione (`onStartupFinished`), se la Go extension è installata e il valore effettivo è il default rotto `"Prompt"` (che gopls rifiuta con `Invalid settings: ... invalid option "Prompt"`), Nomad Lens lo corregge a un valore valido. Trasparente (notifica con "Annulla") e reversibile. Corregge nello scope giusto (globale per il default implicito, workspace se l'override è lì).
+  - Nuove settings: `nomadLens.autoFixGoVulncheck` (bool, default `true`) e `nomadLens.goVulncheckFixValue` (`"Off"` | `"Imports"`, default `"Off"`).
+  - Logica di decisione pura e testata in `src/core/vulncheck.ts` (nessun import `vscode`); glue I/O in `extension.ts`.
+
 ## 0.1.7
 
 ### Corretto

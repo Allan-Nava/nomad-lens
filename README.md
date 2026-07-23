@@ -10,6 +10,10 @@
 - **Incident bundle in one click** — for a failed allocation: `incidents/<date>-<job>-<alloc>/` with a ready-to-fill `report.md` (task event timeline, node, restart counts) plus the tail of stdout/stderr as attached log files. Your incident report is half-written before you start.
 - **Cluster snapshot** — one command generates a markdown health report: problems first (degraded jobs, drained nodes, stuck deployments), full job table after. Perfect for the morning check or as a preflight baseline.
 
+## Go `vulncheck` auto-fix
+
+If you also use the Go extension, its `go.diagnostic.vulncheck` setting ships a default of `"Prompt"` that the `gopls` language server rejects (`Invalid settings: … invalid option "Prompt"`). On activation Nomad Lens detects this and sets a valid value (`"Off"` by default), with a dismissable notification and an undo action. Opt out with `nomadLens.autoFixGoVulncheck: false`, or prefer active scanning with `nomadLens.goVulncheckFixValue: "Imports"`.
+
 ## Security
 
 ACL tokens are read from an environment variable (you configure the variable *name* per cluster via `tokenEnv`) — tokens are never stored in settings and never displayed.

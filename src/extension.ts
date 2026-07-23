@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ClusterConfig, NomadClient, JobSummary, AllocSummary } from './core/api';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth } from './core/report';
+import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 
 type Node =
   | { kind: 'section'; label: 'Jobs' | 'Nodes' | 'Deployments' }
@@ -272,6 +273,49 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push({ dispose: stopAllStreams });
+
+  void maybeFixGoVulncheck();
+}
+
+// All'attivazione, corregge il default rotto `go.diagnostic.vulncheck: "Prompt"`
+// della Go extension (gopls lo rifiuta). Trasparente e reversibile; la decisione
+// e' pura in core/vulncheck.ts, qui c'e' solo l'I/O sulle settings.
+async function maybeFixGoVulncheck(): Promise<void> {
+  const nl = vscode.workspace.getConfiguration('nomadLens');
+  const cfg = vscode.workspace.getConfiguration();
+  const inspected = cfg.inspect<string>(VULNCHECK_SETTING);
+
+  const decision = decideVulncheckFix({
+    goExtensionInstalled: vscode.extensions.getExtension('golang.go') !== undefined,
+    autoFixEnabled: nl.get<boolean>('autoFixGoVulncheck', true),
+    fixTarget: nl.get<VulncheckFixTarget>('goVulncheckFixValue', 'Off'),
+    effectiveValue: cfg.get<string>(VULNCHECK_SETTING),
+    workspaceValue: inspected?.workspaceValue,
+  });
+  if (decision.action !== 'fix') return;
+
+  const target =
+    decision.scope === 'workspace'
+      ? vscode.ConfigurationTarget.Workspace
+      : vscode.ConfigurationTarget.Global;
+
+  try {
+    await cfg.update(VULNCHECK_SETTING, decision.to, target);
+  } catch (err) {
+    void vscode.window.showWarningMessage(`Nomad Lens: impossibile correggere ${VULNCHECK_SETTING} — ${err}`);
+    return;
+  }
+
+  const choice = await vscode.window.showInformationMessage(
+    `Nomad Lens: corretto ${VULNCHECK_SETTING} ("${decision.from}" → "${decision.to}"): gopls rifiuta "${decision.from}".`,
+    'Annulla',
+    'Non correggere più'
+  );
+  if (choice === 'Annulla') {
+    await cfg.update(VULNCHECK_SETTING, undefined, target);
+  } else if (choice === 'Non correggere più') {
+    await nl.update('autoFixGoVulncheck', false, vscode.ConfigurationTarget.Global);
+  }
 }
 
 export function deactivate(): void {}

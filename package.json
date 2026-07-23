@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -24,7 +24,9 @@
     "devops",
     "operations"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -139,6 +141,20 @@
             }
           ],
           "description": "Nomad clusters. Tokens are read from the env var named in tokenEnv."
+        },
+        "nomadLens.autoFixGoVulncheck": {
+          "type": "boolean",
+          "default": true,
+          "description": "All'attivazione, correggi il default rotto della Go extension go.diagnostic.vulncheck=\"Prompt\" (gopls lo rifiuta) impostandolo a un valore valido. Disattivabile."
+        },
+        "nomadLens.goVulncheckFixValue": {
+          "type": "string",
+          "enum": [
+            "Off",
+            "Imports"
+          ],
+          "default": "Off",
+          "description": "Valore usato dall'auto-fix di go.diagnostic.vulncheck: \"Off\" (silenzioso) oppure \"Imports\" (scansiona le dipendenze con govulncheck)."
         }
       }
     }
