@@ -16,7 +16,7 @@ Feature e infrastruttura spedite nella serie 0.2.x.
 
 - [x] **NOM-1 — Restart storm / OOM detector**: le allocation con restart loop (≥3) o kill da OOM sono evidenziate nel tree (icona ⚠ + descrizione), dedotto dagli eventi task già presenti nella lista allocation (nessuna richiesta extra). Logica pura `taskEventIsOom`/`allocWarnings`, testata.
 - [ ] **NOM-2 — Deployment watch**: dopo un deploy, progress canary/rolling nella status bar + notifica se fallisce o si blocca.
-- [ ] **NOM-3 — Azioni con conferma**: restart allocation, stop/start job (doppia conferma, mai default).
+- [x] **NOM-3 — Azioni con conferma**: restart allocation, stop/start job dal menu contestuale del tree. Distruttive → doppia conferma modale; stop job → conferma digitando l'id; mai un bottone di default. Metadati puri in `core/actions.ts` (testati); stopJob verificato in integrazione.
 - [ ] **NOM-4 — Grep cross-alloc**: cerca una stringa nei log di tutte le allocation di un job in parallelo, risultati con link.
 
 ## v0.4 — Drift

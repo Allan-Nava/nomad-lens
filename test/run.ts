@@ -7,6 +7,7 @@ import * as path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { NomadClient, JobSummary, PlanResult, desiredFromJob, tokenSentInClear, taskEventIsOom, mapPool } from '../src/core/api';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from '../src/core/report';
+import { ACTIONS, confirmMessage } from '../src/core/actions';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 
 // Spec di riferimento usato dai test di integrazione. A livello di modulo cosi'
@@ -180,6 +181,17 @@ async function main(): Promise<void> {
     assert.deepStrictEqual(allocWarnings({ restarts: 4, oom: true }), ['OOM', 'restart loop ×4']);
   });
 
+  await test('actions: stop/restart distruttivi, stop richiede digitazione, start no', () => {
+    assert.strictEqual(ACTIONS.stopJob.destructive, true);
+    assert.strictEqual(ACTIONS.stopJob.requireType, true);
+    assert.strictEqual(ACTIONS.restartAlloc.destructive, true);
+    assert.strictEqual(ACTIONS.restartAlloc.requireType, false);
+    assert.strictEqual(ACTIONS.startJob.destructive, false);
+    assert.ok(confirmMessage('stopJob', 'packager').includes('packager'));
+    assert.ok(confirmMessage('stopJob', 'packager').includes('mutativa'));
+    assert.ok(!confirmMessage('startJob', 'packager').includes('mutativa'));
+  });
+
   await test('desiredFromJob: somma i Count dei task group (0 se assenti)', () => {
     assert.strictEqual(desiredFromJob({ TaskGroups: [{ Count: 3 }, { Count: 2 }] }), 5);
     assert.strictEqual(desiredFromJob({ TaskGroups: [{ Count: 1 }, {}] }), 1); // Count mancante = 0
@@ -295,6 +307,22 @@ async function main(): Promise<void> {
     await test('integration: allocations listing does not throw', async () => {
       const allocs = await client.allocations('lens-demo');
       assert.ok(Array.isArray(allocs));
+    });
+
+    await test('integration: stopJob deregistra il job', async () => {
+      const spec = await client.parseHcl(HCL.replace('lens-demo', 'lens-stopme'));
+      await client.registerJob(spec);
+      for (let i = 0; i < 20; i++) {
+        if ((await client.jobs()).some((j) => j.id === 'lens-stopme')) break;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      await client.stopJob('lens-stopme');
+      for (let i = 0; i < 20; i++) {
+        const j = (await client.jobs()).find((x) => x.id === 'lens-stopme');
+        if (!j || j.status === 'dead') return;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      assert.fail('lens-stopme ancora attivo dopo stopJob');
     });
   } catch (err) {
     console.log(`skip integration tests (${err})`);

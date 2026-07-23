@@ -3,6 +3,7 @@ import * as path from 'path';
 import { ClusterConfig, NomadClient, JobSummary, AllocSummary, tokenSentInClear } from './core/api';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
+import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
 
 type Node =
   | { kind: 'section'; label: 'Jobs' | 'Nodes' | 'Deployments' }
@@ -292,6 +293,42 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (err) {
         void vscode.window.showErrorMessage(`Snapshot fallito — ${err}`);
       }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.restartAlloc', async (node?: { alloc: AllocSummary }) => {
+      if (!client || !node) return;
+      if (!(await confirmAction('restartAlloc', node.alloc.id.slice(0, 8)))) return;
+      try {
+        await client.restartAllocation(node.alloc.id);
+        void vscode.window.showInformationMessage(`Allocation ${node.alloc.id.slice(0, 8)} riavviata.`);
+        tree.refresh();
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Restart allocation fallito — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.stopJob', async (node?: { job: JobSummary }) => {
+      if (!client || !node) return;
+      if (!(await confirmAction('stopJob', node.job.id))) return;
+      try {
+        await client.stopJob(node.job.id);
+        void vscode.window.showInformationMessage(`Job ${node.job.id} fermato.`);
+        tree.refresh();
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Stop job fallito — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.startJob', async (node?: { job: JobSummary }) => {
+      if (!client || !node) return;
+      if (!(await confirmAction('startJob', node.job.id))) return;
+      try {
+        await client.startJob(node.job.id);
+        void vscode.window.showInformationMessage(`Job ${node.job.id} riavviato.`);
+        tree.refresh();
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Start job fallito — ${err}`);
+      }
     })
   );
 
@@ -339,6 +376,32 @@ async function maybeFixGoVulncheck(): Promise<void> {
   } else if (choice === 'Non correggere più') {
     await nl.update('autoFixGoVulncheck', false, vscode.ConfigurationTarget.Global);
   }
+}
+
+// Conferma dei comandi mutativi (NOM-3). Distruttivi → doppia conferma; stop job
+// → conferma digitata. Mai un bottone di default (modali + input box esatto).
+async function confirmAction(kind: NomadActionKind, target: string): Promise<boolean> {
+  const m = ACTIONS[kind];
+  const first = await vscode.window.showWarningMessage(confirmMessage(kind, target), { modal: true }, m.verb);
+  if (first !== m.verb) return false;
+  if (m.requireType) {
+    const typed = await vscode.window.showInputBox({
+      prompt: `Digita "${target}" per confermare`,
+      placeHolder: target,
+      validateInput: (v) => (v === target ? undefined : 'Non combacia'),
+    });
+    return typed === target;
+  }
+  if (m.destructive) {
+    const ok = 'Sì, procedi';
+    const second = await vscode.window.showWarningMessage(
+      `Confermi definitivamente? ${confirmMessage(kind, target)}`,
+      { modal: true },
+      ok
+    );
+    return second === ok;
+  }
+  return true;
 }
 
 export function deactivate(): void {}

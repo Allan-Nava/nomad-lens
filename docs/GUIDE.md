@@ -88,6 +88,16 @@ Il report si apre subito: il tuo incident è già mezzo scritto.
 
 > Serve una cartella aperta in VS Code (workspace folder): è lì che viene salvato il bundle.
 
+## 6b. Azioni con conferma (mutative)
+
+Dal menu contestuale del tree, azioni che **modificano** il cluster — sempre dietro conferma esplicita, mai un default:
+
+- **Restart Allocation** (su un'alloc) — riavvia i task dell'allocazione. Doppia conferma modale.
+- **Stop Job** (su un job) — deregistra il job. Conferma **digitando l'id del job** (la più forte).
+- **Start Job** (su un job) — rilegge lo spec del job, azzera `Stop` e ri-registra. Conferma singola.
+
+Nessuna di queste ha un pulsante di default: `Invio` non le innesca.
+
 ## 7. Snapshot del cluster
 
 **Nomad Lens: Cluster Snapshot Report** genera un markdown di salute:

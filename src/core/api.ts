@@ -255,6 +255,40 @@ export class NomadClient {
     await this.postJson('jobs', { Job: job });
   }
 
+  private async postVoid(path: string, body: unknown): Promise<void> {
+    const res = await fetch(this.url(path), {
+      method: 'POST',
+      headers: { ...this.headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`Nomad API ${path}: HTTP ${res.status} ${truncate(await res.text())}`);
+  }
+
+  // --- comandi mutativi (NOM-3): sempre dietro conferma esplicita nel glue ------
+
+  /** Riavvia i task di un'allocazione. */
+  async restartAllocation(allocId: string): Promise<void> {
+    await this.postVoid(`client/allocation/${encodeURIComponent(allocId)}/restart`, {});
+  }
+
+  /** Ferma (deregistra) un job. `purge` lo rimuove anche dallo stato. */
+  async stopJob(id: string, purge = false): Promise<void> {
+    const res = await fetch(this.url(`job/${encodeURIComponent(id)}`, purge ? { purge: 'true' } : {}), {
+      method: 'DELETE',
+      headers: this.headers(),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`Nomad API stop job: HTTP ${res.status} ${truncate(await res.text())}`);
+  }
+
+  /** Riavvia un job fermato: rilegge lo spec, azzera Stop e ri-registra. */
+  async startJob(id: string): Promise<void> {
+    const job = await this.getJson<Record<string, unknown>>(`job/${encodeURIComponent(id)}`);
+    (job as { Stop?: boolean }).Stop = false;
+    await this.registerJob(job);
+  }
+
   /** Plan: returns the diff between the submitted spec and the running job. */
   async plan(job: Record<string, unknown>): Promise<PlanResult> {
     const id = String((job as { ID?: string }).ID ?? '');

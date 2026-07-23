@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+### Aggiunto
+
+- **Azioni con conferma** (NOM-3): dal menu contestuale del tree — **Restart Allocation**, **Stop Job**, **Start Job**. Le azioni distruttive richiedono doppia conferma modale; lo stop job richiede di **digitare l'id** del job; nessun pulsante di default (regola CLAUDE.md sui comandi mutativi). API `restartAllocation`/`stopJob`/`startJob`; metadati/conferme puri in `core/actions.ts` (testati); `stopJob` verificato in integrazione contro `nomad agent -dev`.
+
 ## 0.3.1
 
 Hardening dall'audit del codice recente.
