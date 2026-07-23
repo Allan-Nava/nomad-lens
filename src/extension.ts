@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { ClusterConfig, NomadClient, JobSummary, AllocSummary } from './core/api';
+import { ClusterConfig, NomadClient, JobSummary, AllocSummary, tokenSentInClear } from './core/api';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth } from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 
@@ -144,8 +144,23 @@ export function activate(context: vscode.ExtensionContext): void {
     status.show();
   };
 
+  // Avvisa (una volta per cluster) se un token ACL verrebbe inviato in chiaro su http://.
+  const warnedInsecure = new Set<string>();
+  const warnIfInsecureToken = (cfg: ClusterConfig) => {
+    const tokenPresent = !!(cfg.tokenEnv && process.env[cfg.tokenEnv]);
+    if (tokenSentInClear(cfg.address, tokenPresent) && !warnedInsecure.has(cfg.name)) {
+      warnedInsecure.add(cfg.name);
+      void vscode.window.showWarningMessage(
+        `Nomad Lens: il token ACL del cluster "${cfg.name}" verrebbe inviato in chiaro su ${cfg.address}. Usa https://.`
+      );
+    }
+  };
+
   const initial = clusters()[0];
-  if (initial) client = new NomadClient(initial);
+  if (initial) {
+    client = new NomadClient(initial);
+    warnIfInsecureToken(initial);
+  }
   updateStatus();
 
   const tree = new NomadTree(() => client);
@@ -168,6 +183,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!picked) return;
       stopAllStreams();
       client = new NomadClient(picked.c);
+      warnIfInsecureToken(picked.c);
       updateStatus();
       tree.refresh();
     }),

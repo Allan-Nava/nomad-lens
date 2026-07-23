@@ -2,6 +2,35 @@
 // so it can be integration-tested against `nomad agent -dev`.
 // Uses the global fetch available in Node 18+ / the VS Code extension host.
 
+/** Ogni richiesta non-streaming aborta dopo questo timeout: un cluster
+ *  irraggiungibile non deve lasciare l'albero appeso all'infinito. */
+export const REQUEST_TIMEOUT_MS = 8000;
+
+function truncate(s: string, n = 500): string {
+  return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+/** Desired autorevole di un job = somma dei Count dei suoi task group
+ *  (il job summary NON contiene il conteggio configurato). Pura e testabile. */
+export function desiredFromJob(job: { TaskGroups?: { Count?: number }[] | null }): number {
+  return (job.TaskGroups ?? []).reduce((n, tg) => n + (tg.Count ?? 0), 0);
+}
+
+/** True se un token ACL verrebbe inviato in chiaro: presente, su http://,
+ *  verso un host non locale. Pura e testabile. */
+export function tokenSentInClear(address: string, tokenPresent: boolean): boolean {
+  if (!tokenPresent) return false;
+  let host: string;
+  try {
+    host = new URL(address).hostname;
+  } catch {
+    return false;
+  }
+  const isLocal =
+    host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.localhost');
+  return address.toLowerCase().startsWith('http://') && !isLocal;
+}
+
 export interface ClusterConfig {
   name: string;
   address: string;
@@ -68,8 +97,11 @@ export class NomadClient {
   }
 
   private async getJson<T>(path: string, params: Record<string, string> = {}): Promise<T> {
-    const res = await fetch(this.url(path, params), { headers: this.headers() });
-    if (!res.ok) throw new Error(`Nomad API ${path}: HTTP ${res.status} ${await res.text()}`);
+    const res = await fetch(this.url(path, params), {
+      headers: this.headers(),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`Nomad API ${path}: HTTP ${res.status} ${truncate(await res.text())}`);
     return (await res.json()) as T;
   }
 
@@ -78,8 +110,9 @@ export class NomadClient {
       method: 'POST',
       headers: { ...this.headers(), 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
-    if (!res.ok) throw new Error(`Nomad API ${path}: HTTP ${res.status} ${await res.text()}`);
+    if (!res.ok) throw new Error(`Nomad API ${path}: HTTP ${res.status} ${truncate(await res.text())}`);
     return (await res.json()) as T;
   }
 
@@ -92,17 +125,39 @@ export class NomadClient {
       JobSummary?: { Summary?: Record<string, { Running?: number; Failed?: number; Queued?: number; Starting?: number }> };
     };
     const raw = await this.getJson<Raw[]>('jobs');
-    return raw.map((j) => {
+    const list = raw.map((j) => {
       let running = 0;
       let failed = 0;
-      let desired = 0;
+      let accounted = 0;
       for (const s of Object.values(j.JobSummary?.Summary ?? {})) {
         running += s.Running ?? 0;
         failed += s.Failed ?? 0;
-        desired += (s.Running ?? 0) + (s.Queued ?? 0) + (s.Starting ?? 0);
+        accounted += (s.Running ?? 0) + (s.Queued ?? 0) + (s.Starting ?? 0);
       }
-      return { id: j.ID, name: j.Name, type: j.Type, status: j.Status, running, failed, desired };
+      // fallback: alloc contabilizzate dal summary (finche' non abbiamo il Count reale).
+      return { id: j.ID, name: j.Name, type: j.Type, status: j.Status, running, failed, desired: accounted };
     });
+
+    // Desired autorevole = somma dei Count dei task group, dal job vero. Il summary
+    // non lo contiene, quindi un job running-ma-sotto-scala senza alloc in coda
+    // altrimenti risulterebbe "healthy". Solo per i job service (batch/system hanno
+    // semantiche di conteggio diverse); in parallelo, con fallback se la fetch fallisce.
+    await Promise.all(
+      list
+        .filter((s) => s.type === 'service')
+        .map(async (s) => {
+          try {
+            const full = await this.getJson<{ TaskGroups?: { Count?: number }[] | null }>(
+              `job/${encodeURIComponent(s.id)}`
+            );
+            const d = desiredFromJob(full);
+            if (d > 0) s.desired = d;
+          } catch {
+            /* mantieni il fallback dal summary */
+          }
+        })
+    );
+    return list;
   }
 
   async allocations(jobId: string): Promise<AllocSummary[]> {
@@ -169,7 +224,7 @@ export class NomadClient {
       offset: String(bytes),
       plain: 'true',
     });
-    const res = await fetch(url, { headers: this.headers() });
+    const res = await fetch(url, { headers: this.headers(), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (!res.ok) return `(no ${type} logs: HTTP ${res.status})`;
     return await res.text();
   }

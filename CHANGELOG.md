@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.2
+
+Hardening dall'audit interno.
+
+### Corretto
+
+- **`desired` autorevole** (`jobHealth` core): il conteggio desiderato dei job service ora viene dal `Count` reale dei task group (`GET /v1/job/:id`), non più approssimato con `Running+Queued+Starting` dal summary. Prima un job running ma sotto-scala senza alloc in coda risultava "healthy"; ora è correttamente **degraded**. Fetch in parallelo, con fallback al summary se fallisce.
+- **Timeout sulle richieste**: `getJson`/`postJson`/`logsTail` abortiscono dopo `REQUEST_TIMEOUT_MS` (8s) — un cluster irraggiungibile non lascia più l'albero appeso.
+- **Corpi d'errore troncati** (500 char) nei messaggi, per non riversare output grezzo del cluster nelle notifiche.
+- **CI least-privilege**: `permissions` di default a `contents: read`; solo il job `package` (che crea la release) ottiene `contents: write`.
+
+### Aggiunto
+
+- **Avviso token in chiaro**: se un cluster usa un token ACL su `http://` verso un host non locale, l'estensione avvisa (una volta per cluster). Logica pura `tokenSentInClear` in `core/api.ts`.
+
 ## 0.2.1
 
 ### Aggiunto

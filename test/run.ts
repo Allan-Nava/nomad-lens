@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
-import { NomadClient, JobSummary, PlanResult } from '../src/core/api';
+import { NomadClient, JobSummary, PlanResult, desiredFromJob, tokenSentInClear } from '../src/core/api';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth } from '../src/core/report';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 
@@ -142,6 +142,22 @@ async function main(): Promise<void> {
     assert.ok(bundle.markdown.includes('restarts: 4'));
     assert.strictEqual(bundle.files.length, 2);
     assert.ok(bundle.files.some((f) => f.name === 'app.stderr.log' && f.content === 'boom\n'));
+  });
+
+  await test('desiredFromJob: somma i Count dei task group (0 se assenti)', () => {
+    assert.strictEqual(desiredFromJob({ TaskGroups: [{ Count: 3 }, { Count: 2 }] }), 5);
+    assert.strictEqual(desiredFromJob({ TaskGroups: [{ Count: 1 }, {}] }), 1); // Count mancante = 0
+    assert.strictEqual(desiredFromJob({ TaskGroups: null }), 0);
+    assert.strictEqual(desiredFromJob({}), 0);
+  });
+
+  await test('tokenSentInClear: token in chiaro solo su http verso host non locale', () => {
+    assert.strictEqual(tokenSentInClear('http://nomad.example:4646', true), true);
+    assert.strictEqual(tokenSentInClear('https://nomad.example:4646', true), false);
+    assert.strictEqual(tokenSentInClear('http://127.0.0.1:4646', true), false);
+    assert.strictEqual(tokenSentInClear('http://localhost:4646', true), false);
+    assert.strictEqual(tokenSentInClear('http://nomad.example:4646', false), false); // nessun token
+    assert.strictEqual(tokenSentInClear('non-un-url', true), false);
   });
 
   await test('vulncheck auto-fix: interviene solo su "Prompt", con scope e target giusti', () => {
