@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: ["master", "main"]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install nomad (for integration tests)
+        run: |
+          curl -sL https://releases.hashicorp.com/nomad/1.9.5/nomad_1.9.5_linux_amd64.zip -o nomad.zip
+          sudo unzip -o nomad.zip -d /usr/local/bin
+          nomad version
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run build
+
+  package:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx @vscode/vsce package --no-dependencies
+      - name: Upload .vsix to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.vsix"

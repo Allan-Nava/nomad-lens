@@ -1,0 +1,247 @@
+// Thin client for the Nomad HTTP API (v1). Pure module — no vscode imports —
+// so it can be integration-tested against `nomad agent -dev`.
+// Uses the global fetch available in Node 18+ / the VS Code extension host.
+
+export interface ClusterConfig {
+  name: string;
+  address: string;
+  namespace?: string;
+  /** Env var NAME that holds the ACL token (the token itself is never stored). */
+  tokenEnv?: string;
+}
+
+export interface JobSummary {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  running: number;
+  desired: number;
+  failed: number;
+}
+
+export interface AllocSummary {
+  id: string;
+  name: string;
+  jobId: string;
+  taskGroup: string;
+  clientStatus: string;
+  nodeName: string;
+  tasks: string[];
+  restarts: number;
+}
+
+export interface NodeSummary {
+  id: string;
+  name: string;
+  status: string;
+  drain: boolean;
+  allocCount?: number;
+}
+
+export interface DeploymentSummary {
+  id: string;
+  jobId: string;
+  status: string;
+  description: string;
+}
+
+export class NomadClient {
+  constructor(private cfg: ClusterConfig) {}
+
+  get clusterName(): string {
+    return this.cfg.name;
+  }
+
+  private headers(): Record<string, string> {
+    const h: Record<string, string> = {};
+    const token = this.cfg.tokenEnv ? process.env[this.cfg.tokenEnv] : undefined;
+    if (token) h['X-Nomad-Token'] = token;
+    return h;
+  }
+
+  private url(path: string, params: Record<string, string> = {}): string {
+    const u = new URL(`/v1/${path}`, this.cfg.address);
+    if (this.cfg.namespace) u.searchParams.set('namespace', this.cfg.namespace);
+    for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+    return u.toString();
+  }
+
+  private async getJson<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+    const res = await fetch(this.url(path, params), { headers: this.headers() });
+    if (!res.ok) throw new Error(`Nomad API ${path}: HTTP ${res.status} ${await res.text()}`);
+    return (await res.json()) as T;
+  }
+
+  private async postJson<T>(path: string, body: unknown): Promise<T> {
+    const res = await fetch(this.url(path), {
+      method: 'POST',
+      headers: { ...this.headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Nomad API ${path}: HTTP ${res.status} ${await res.text()}`);
+    return (await res.json()) as T;
+  }
+
+  async jobs(): Promise<JobSummary[]> {
+    type Raw = {
+      ID: string;
+      Name: string;
+      Type: string;
+      Status: string;
+      JobSummary?: { Summary?: Record<string, { Running?: number; Failed?: number; Queued?: number; Starting?: number }> };
+    };
+    const raw = await this.getJson<Raw[]>('jobs');
+    return raw.map((j) => {
+      let running = 0;
+      let failed = 0;
+      let desired = 0;
+      for (const s of Object.values(j.JobSummary?.Summary ?? {})) {
+        running += s.Running ?? 0;
+        failed += s.Failed ?? 0;
+        desired += (s.Running ?? 0) + (s.Queued ?? 0) + (s.Starting ?? 0);
+      }
+      return { id: j.ID, name: j.Name, type: j.Type, status: j.Status, running, failed, desired };
+    });
+  }
+
+  async allocations(jobId: string): Promise<AllocSummary[]> {
+    type Raw = {
+      ID: string;
+      Name: string;
+      JobID: string;
+      TaskGroup: string;
+      ClientStatus: string;
+      NodeName?: string;
+      TaskStates?: Record<string, { Restarts?: number }>;
+    };
+    const raw = await this.getJson<Raw[]>(`job/${encodeURIComponent(jobId)}/allocations`);
+    return raw.map((a) => ({
+      id: a.ID,
+      name: a.Name,
+      jobId: a.JobID,
+      taskGroup: a.TaskGroup,
+      clientStatus: a.ClientStatus,
+      nodeName: a.NodeName ?? '',
+      tasks: Object.keys(a.TaskStates ?? {}),
+      restarts: Object.values(a.TaskStates ?? {}).reduce((n, t) => n + (t.Restarts ?? 0), 0),
+    }));
+  }
+
+  /** Full allocation object (task states with events) for incident bundles. */
+  async allocation(allocId: string): Promise<Record<string, unknown>> {
+    return this.getJson(`allocation/${encodeURIComponent(allocId)}`);
+  }
+
+  async nodes(): Promise<NodeSummary[]> {
+    type Raw = { ID: string; Name: string; Status: string; Drain: boolean };
+    const raw = await this.getJson<Raw[]>('nodes');
+    return raw.map((n) => ({ id: n.ID, name: n.Name, status: n.Status, drain: n.Drain }));
+  }
+
+  async deployments(): Promise<DeploymentSummary[]> {
+    type Raw = { ID: string; JobID: string; Status: string; StatusDescription: string };
+    const raw = await this.getJson<Raw[]>('deployments');
+    return raw.map((d) => ({ id: d.ID, jobId: d.JobID, status: d.Status, description: d.StatusDescription }));
+  }
+
+  /** Parses an HCL job spec into the JSON job the plan/register APIs expect. */
+  async parseHcl(hcl: string): Promise<Record<string, unknown>> {
+    return this.postJson('jobs/parse', { JobHCL: hcl, Canonicalize: true });
+  }
+
+  async registerJob(job: Record<string, unknown>): Promise<void> {
+    await this.postJson('jobs', { Job: job });
+  }
+
+  /** Plan: returns the diff between the submitted spec and the running job. */
+  async plan(job: Record<string, unknown>): Promise<PlanResult> {
+    const id = String((job as { ID?: string }).ID ?? '');
+    return this.postJson<PlanResult>(`job/${encodeURIComponent(id)}/plan`, { Job: job, Diff: true });
+  }
+
+  /** Fetches a chunk of task logs (no follow). */
+  async logsTail(allocId: string, task: string, type: 'stdout' | 'stderr', bytes = 16384): Promise<string> {
+    const url = this.url(`client/fs/logs/${encodeURIComponent(allocId)}`, {
+      task,
+      type,
+      origin: 'end',
+      offset: String(bytes),
+      plain: 'true',
+    });
+    const res = await fetch(url, { headers: this.headers() });
+    if (!res.ok) return `(no ${type} logs: HTTP ${res.status})`;
+    return await res.text();
+  }
+
+  /**
+   * Streams task logs until the returned controller is aborted.
+   * onData receives decoded text chunks.
+   */
+  followLogs(
+    allocId: string,
+    task: string,
+    type: 'stdout' | 'stderr',
+    onData: (text: string) => void,
+    onEnd: (err?: Error) => void
+  ): AbortController {
+    const controller = new AbortController();
+    const url = this.url(`client/fs/logs/${encodeURIComponent(allocId)}`, {
+      task,
+      type,
+      origin: 'end',
+      offset: '2048',
+      plain: 'true',
+      follow: 'true',
+    });
+    void (async () => {
+      try {
+        const res = await fetch(url, { headers: this.headers(), signal: controller.signal });
+        if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+        const decoder = new TextDecoder();
+        for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+          onData(decoder.decode(chunk, { stream: true }));
+        }
+        onEnd();
+      } catch (err) {
+        if (controller.signal.aborted) onEnd();
+        else onEnd(err instanceof Error ? err : new Error(String(err)));
+      }
+    })();
+    return controller;
+  }
+}
+
+// --- plan diff types (subset of the Nomad API response) -----------------------
+export interface FieldDiff {
+  Type: string;
+  Name: string;
+  Old: string;
+  New: string;
+}
+
+export interface ObjectDiff {
+  Type: string;
+  Name: string;
+  Fields?: FieldDiff[] | null;
+  Objects?: ObjectDiff[] | null;
+}
+
+export interface TaskDiff extends ObjectDiff {
+  Annotations?: string[] | null;
+}
+
+export interface TaskGroupDiff extends ObjectDiff {
+  Tasks?: TaskDiff[] | null;
+  Updates?: Record<string, number> | null;
+}
+
+export interface JobDiff extends ObjectDiff {
+  TaskGroups?: TaskGroupDiff[] | null;
+}
+
+export interface PlanResult {
+  Diff?: JobDiff;
+  Warnings?: string;
+  FailedTGAllocs?: Record<string, unknown> | null;
+}

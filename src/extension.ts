@@ -1,0 +1,277 @@
+import * as vscode from 'vscode';
+import * as path from 'path';
+import { ClusterConfig, NomadClient, JobSummary, AllocSummary } from './core/api';
+import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth } from './core/report';
+
+type Node =
+  | { kind: 'section'; label: 'Jobs' | 'Nodes' | 'Deployments' }
+  | { kind: 'job'; job: JobSummary }
+  | { kind: 'alloc'; alloc: AllocSummary }
+  | { kind: 'task'; alloc: AllocSummary; task: string }
+  | { kind: 'leaf'; label: string; iconId?: string };
+
+const HEALTH_ICON: Record<string, string> = {
+  running: 'pass-filled',
+  degraded: 'warning',
+  pending: 'sync',
+  dead: 'circle-slash',
+  failed: 'error',
+};
+
+class NomadTree implements vscode.TreeDataProvider<Node> {
+  private emitter = new vscode.EventEmitter<Node | undefined>();
+  readonly onDidChangeTreeData = this.emitter.event;
+
+  constructor(private getClient: () => NomadClient | null) {}
+
+  refresh(): void {
+    this.emitter.fire(undefined);
+  }
+
+  getTreeItem(node: Node): vscode.TreeItem {
+    switch (node.kind) {
+      case 'section': {
+        const item = new vscode.TreeItem(
+          node.label,
+          node.label === 'Jobs'
+            ? vscode.TreeItemCollapsibleState.Expanded
+            : vscode.TreeItemCollapsibleState.Collapsed
+        );
+        item.iconPath = new vscode.ThemeIcon(
+          node.label === 'Jobs' ? 'rocket' : node.label === 'Nodes' ? 'server-environment' : 'history'
+        );
+        return item;
+      }
+      case 'job': {
+        const health = jobHealth(node.job);
+        const item = new vscode.TreeItem(node.job.id, vscode.TreeItemCollapsibleState.Collapsed);
+        item.description = `${health} · ${node.job.running}/${node.job.desired} alloc${node.job.failed ? ` · ${node.job.failed} failed` : ''}`;
+        item.iconPath = new vscode.ThemeIcon(HEALTH_ICON[health] ?? 'question');
+        item.contextValue = 'job';
+        return item;
+      }
+      case 'alloc': {
+        const a = node.alloc;
+        const item = new vscode.TreeItem(a.id.slice(0, 8), vscode.TreeItemCollapsibleState.Collapsed);
+        item.description = `${a.clientStatus} · ${a.nodeName}${a.restarts ? ` · restarts ${a.restarts}` : ''}`;
+        item.iconPath = new vscode.ThemeIcon(
+          a.clientStatus === 'running' ? 'pass-filled' : a.clientStatus === 'failed' ? 'error' : 'circle-outline'
+        );
+        item.contextValue = `alloc-${a.clientStatus}`;
+        return item;
+      }
+      case 'task': {
+        const item = new vscode.TreeItem(node.task, vscode.TreeItemCollapsibleState.None);
+        item.iconPath = new vscode.ThemeIcon('terminal');
+        item.contextValue = 'task';
+        item.command = {
+          command: 'nomadLens.followLogs',
+          title: 'Follow Logs',
+          arguments: [node],
+        };
+        return item;
+      }
+      case 'leaf': {
+        const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.None);
+        if (node.iconId) item.iconPath = new vscode.ThemeIcon(node.iconId);
+        return item;
+      }
+    }
+  }
+
+  async getChildren(node?: Node): Promise<Node[]> {
+    const client = this.getClient();
+    if (!client) return [{ kind: 'leaf', label: 'Nessun cluster configurato (nomadLens.clusters)', iconId: 'gear' }];
+    try {
+      if (!node) {
+        return [
+          { kind: 'section', label: 'Jobs' },
+          { kind: 'section', label: 'Nodes' },
+          { kind: 'section', label: 'Deployments' },
+        ];
+      }
+      if (node.kind === 'section' && node.label === 'Jobs') {
+        const jobs = await client.jobs();
+        return jobs
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .map((job) => ({ kind: 'job' as const, job }));
+      }
+      if (node.kind === 'section' && node.label === 'Nodes') {
+        const nodes = await client.nodes();
+        return nodes.map((n) => ({
+          kind: 'leaf' as const,
+          label: `${n.name} — ${n.status}${n.drain ? ' (drain)' : ''}`,
+          iconId: n.status === 'ready' && !n.drain ? 'pass-filled' : 'error',
+        }));
+      }
+      if (node.kind === 'section' && node.label === 'Deployments') {
+        const deps = await client.deployments();
+        if (!deps.length) return [{ kind: 'leaf', label: '(nessun deployment)', iconId: 'dash' }];
+        return deps.map((d) => ({
+          kind: 'leaf' as const,
+          label: `${d.jobId} — ${d.status}${d.description ? ` · ${d.description}` : ''}`,
+          iconId: d.status === 'successful' ? 'pass-filled' : 'sync',
+        }));
+      }
+      if (node.kind === 'job') {
+        const allocs = await client.allocations(node.job.id);
+        return allocs
+          .filter((a) => a.clientStatus !== 'complete')
+          .map((alloc) => ({ kind: 'alloc' as const, alloc }));
+      }
+      if (node.kind === 'alloc') {
+        return node.alloc.tasks.map((task) => ({ kind: 'task' as const, alloc: node.alloc, task }));
+      }
+      return [];
+    } catch (err) {
+      return [{ kind: 'leaf', label: `errore: ${err}`, iconId: 'error' }];
+    }
+  }
+}
+
+export function activate(context: vscode.ExtensionContext): void {
+  let client: NomadClient | null = null;
+  const logStreams = new Map<string, { controller: AbortController; channel: vscode.OutputChannel }>();
+
+  const clusters = (): ClusterConfig[] =>
+    vscode.workspace.getConfiguration('nomadLens').get<ClusterConfig[]>('clusters', []);
+
+  const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 88);
+  status.command = 'nomadLens.selectCluster';
+  const updateStatus = () => {
+    status.text = client ? `$(rocket) nomad: ${client.clusterName}` : '$(rocket) nomad: select cluster';
+    status.show();
+  };
+
+  const initial = clusters()[0];
+  if (initial) client = new NomadClient(initial);
+  updateStatus();
+
+  const tree = new NomadTree(() => client);
+  context.subscriptions.push(vscode.window.registerTreeDataProvider('nomadLens.explorer', tree), status);
+
+  const stopAllStreams = () => {
+    for (const [, s] of logStreams) s.controller.abort();
+    logStreams.clear();
+  };
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('nomadLens.refresh', () => tree.refresh()),
+
+    vscode.commands.registerCommand('nomadLens.selectCluster', async () => {
+      const all = clusters();
+      const picked = await vscode.window.showQuickPick(
+        all.map((c) => ({ label: c.name, description: c.address, c })),
+        { placeHolder: 'Cluster Nomad' }
+      );
+      if (!picked) return;
+      stopAllStreams();
+      client = new NomadClient(picked.c);
+      updateStatus();
+      tree.refresh();
+    }),
+
+    vscode.commands.registerCommand('nomadLens.followLogs', async (node?: { alloc: AllocSummary; task: string }) => {
+      if (!client || !node) return;
+      const type = (await vscode.window.showQuickPick(['stdout', 'stderr'], {
+        placeHolder: `Log di ${node.task} (alloc ${node.alloc.id.slice(0, 8)})`,
+      })) as 'stdout' | 'stderr' | undefined;
+      if (!type) return;
+      const key = `${node.alloc.id}/${node.task}/${type}`;
+      if (logStreams.has(key)) {
+        logStreams.get(key)!.channel.show(true);
+        return;
+      }
+      const channel = vscode.window.createOutputChannel(`Nomad: ${node.alloc.jobId}/${node.task} ${type}`);
+      channel.show(true);
+      const controller = client.followLogs(
+        node.alloc.id,
+        node.task,
+        type,
+        (text) => channel.append(text),
+        (err) => {
+          channel.appendLine(err ? `\n--- stream error: ${err.message} ---` : '\n--- stream closed ---');
+          logStreams.delete(key);
+        }
+      );
+      logStreams.set(key, { controller, channel });
+    }),
+
+    vscode.commands.registerCommand('nomadLens.stopLogs', async () => {
+      const key = await vscode.window.showQuickPick([...logStreams.keys()], { placeHolder: 'Stream da fermare' });
+      if (!key) return;
+      logStreams.get(key)?.controller.abort();
+      logStreams.delete(key);
+    }),
+
+    vscode.commands.registerCommand('nomadLens.planFile', async () => {
+      if (!client) return;
+      const doc = vscode.window.activeTextEditor?.document;
+      if (!doc || !/\.(nomad|hcl)$/.test(doc.fileName)) {
+        void vscode.window.showWarningMessage('Apri un job spec .nomad/.hcl prima di lanciare il plan.');
+        return;
+      }
+      try {
+        const job = await client.parseHcl(doc.getText());
+        const plan = await client.plan(job);
+        const text = [
+          `# nomad plan — ${path.basename(doc.fileName)} vs cluster ${client.clusterName}`,
+          `# ${new Date().toISOString()}`,
+          '',
+          renderPlanDiff(plan),
+        ].join('\n');
+        const planDoc = await vscode.workspace.openTextDocument({ content: text, language: 'diff' });
+        await vscode.window.showTextDocument(planDoc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
+      } catch (err) {
+        void vscode.window.showErrorMessage(`nomad plan fallito — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.incidentBundle', async (node?: { alloc: AllocSummary }) => {
+      if (!client || !node) return;
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      if (!folder) {
+        void vscode.window.showWarningMessage('Apri una cartella di lavoro dove salvare il bundle.');
+        return;
+      }
+      try {
+        const allocRaw = await client.allocation(node.alloc.id);
+        const logs: Record<string, { stdout: string; stderr: string }> = {};
+        for (const task of node.alloc.tasks) {
+          logs[task] = {
+            stdout: await client.logsTail(node.alloc.id, task, 'stdout'),
+            stderr: await client.logsTail(node.alloc.id, task, 'stderr'),
+          };
+        }
+        const bundle = buildIncidentBundle({ cluster: client.clusterName, alloc: node.alloc, allocRaw, logs });
+        const dir = vscode.Uri.joinPath(folder.uri, 'incidents', bundle.dirName);
+        await vscode.workspace.fs.createDirectory(dir);
+        await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, 'report.md'), Buffer.from(bundle.markdown));
+        for (const f of bundle.files) {
+          await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, f.name), Buffer.from(f.content));
+        }
+        const reportDoc = await vscode.workspace.openTextDocument(vscode.Uri.joinPath(dir, 'report.md'));
+        await vscode.window.showTextDocument(reportDoc);
+        void vscode.window.showInformationMessage(`Incident bundle: incidents/${bundle.dirName}/`);
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Incident bundle fallito — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.snapshot', async () => {
+      if (!client) return;
+      try {
+        const [jobs, nodes, deployments] = await Promise.all([client.jobs(), client.nodes(), client.deployments()]);
+        const md = renderSnapshot(client.clusterName, jobs, nodes, deployments);
+        const doc = await vscode.workspace.openTextDocument({ content: md, language: 'markdown' });
+        await vscode.window.showTextDocument(doc, { preview: true });
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Snapshot fallito — ${err}`);
+      }
+    })
+  );
+
+  context.subscriptions.push({ dispose: stopAllStreams });
+}
+
+export function deactivate(): void {}

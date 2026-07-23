@@ -1,0 +1,104 @@
+{
+  "name": "nomad-lens",
+  "displayName": "Nomad Lens",
+  "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
+  "version": "0.1.0",
+  "publisher": "allan-nava",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Allan-Nava/nomad-lens"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "nomad",
+    "hashicorp",
+    "orchestrator",
+    "devops",
+    "operations"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "nomadLens",
+          "title": "Nomad",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "nomadLens": [
+        {
+          "id": "nomadLens.explorer",
+          "name": "Cluster"
+        }
+      ]
+    },
+    "commands": [
+      { "command": "nomadLens.refresh", "title": "Nomad Lens: Refresh", "icon": "$(refresh)" },
+      { "command": "nomadLens.selectCluster", "title": "Nomad Lens: Select Cluster" },
+      { "command": "nomadLens.followLogs", "title": "Nomad Lens: Follow Task Logs" },
+      { "command": "nomadLens.stopLogs", "title": "Nomad Lens: Stop Following Logs" },
+      { "command": "nomadLens.planFile", "title": "Nomad Lens: Plan Current Job File (diff vs running)" },
+      { "command": "nomadLens.incidentBundle", "title": "Nomad Lens: Export Incident Bundle for Allocation" },
+      { "command": "nomadLens.snapshot", "title": "Nomad Lens: Cluster Snapshot Report" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "nomadLens.refresh", "when": "view == nomadLens.explorer", "group": "navigation" },
+        { "command": "nomadLens.snapshot", "when": "view == nomadLens.explorer" }
+      ],
+      "view/item/context": [
+        { "command": "nomadLens.followLogs", "when": "view == nomadLens.explorer && viewItem == task" },
+        { "command": "nomadLens.incidentBundle", "when": "view == nomadLens.explorer && viewItem =~ /^alloc/" }
+      ],
+      "editor/title/context": [
+        { "command": "nomadLens.planFile", "when": "resourceExtname == .nomad || resourceExtname == .hcl" }
+      ]
+    },
+    "configuration": {
+      "title": "Nomad Lens",
+      "properties": {
+        "nomadLens.clusters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "address": { "type": "string", "description": "http(s)://host:4646" },
+              "namespace": { "type": "string" },
+              "tokenEnv": { "type": "string", "description": "Name of the env var holding the ACL token (never store tokens in settings)" }
+            },
+            "required": ["name", "address"]
+          },
+          "default": [
+            { "name": "local", "address": "http://127.0.0.1:4646" }
+          ],
+          "description": "Nomad clusters. Tokens are read from the env var named in tokenEnv."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "test": "node esbuild.mjs --test && node .test/run.mjs",
+    "package": "vsce package --no-dependencies",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0"
+  }
+}
