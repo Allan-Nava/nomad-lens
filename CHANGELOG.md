@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.5
+
+### Modificato
+
+- Backlog e milestone riorganizzati: nuova milestone **v0.2 — Rilasciato** con le feature spedite nella serie 0.2.x (publish automatico, backlog sync, auto-fix vulncheck `NOM-11`, hardening da audit `NOM-12`, guida + sito `NOM-13`). Le milestone pianificate rinominate coerentemente con le versioni reali (`v0.3 — Daily driver`, `v0.4 — Drift`); `NOM-8` ridotto ai soli screenshot. Milestone/issue GitHub allineate.
+
 ## 0.2.4
 
 ### Modificato
