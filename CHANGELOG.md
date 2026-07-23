@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4
+
+### Corretto
+
+- Test di integrazione rossi in CI (Nomad 1.9.5): la fixture HCL usava un blocco single-line con due argomenti (`resources { cpu = 100, memory = 64 }`), sintassi rifiutata da HCL2. Riscritti `config` e `resources` come blocchi multi-line. Non emergeva in locale perche' l'integrazione si salta senza il binario `nomad`.
+
 ## 0.1.3
 
 ### Corretto

@@ -135,8 +135,13 @@ job "lens-demo" {
     count = 2
     task "app" {
       driver = "docker"
-      config { image = "nginx:1.25" }
-      resources { cpu = 100, memory = 64 }
+      config {
+        image = "nginx:1.25"
+      }
+      resources {
+        cpu    = 100
+        memory = 64
+      }
     }
   }
 }
