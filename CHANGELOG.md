@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+
+### Corretto
+
+- Build CI (`npx tsc --noEmit`) rossa per type globali Node/undici non risolti (`process`, `fetch`, `URL`, `AbortController`, `TextDecoder`, `Buffer`, `console`, `setTimeout`): dipendeva dall'auto-discovery dei pacchetti `@types`, non deterministica nel runner. `tsconfig.json` ora dichiara esplicitamente `"types": ["node", "vscode"]`.
+
 ## 0.1.2
 
 ### Aggiunto
