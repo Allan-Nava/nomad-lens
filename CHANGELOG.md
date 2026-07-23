@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+### Aggiunto
+
+- Guida d'uso completa in `docs/GUIDE.md` (installazione, config cluster/token, explorer, plan diff, log, incident bundle, snapshot, auto-fix vulncheck, troubleshooting, sicurezza), linkata dal README. Esclusa dal `.vsix`.
+
 ## 0.2.0
 
 ### Aggiunto

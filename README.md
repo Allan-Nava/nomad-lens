@@ -2,6 +2,8 @@
 
 **HashiCorp Nomad operations inside VS Code** — the place where you already edit your job specs.
 
+📖 **[Guida d'uso completa →](docs/GUIDE.md)**
+
 ## Features
 
 - **Cluster explorer** — jobs with real health (a `running` job missing allocations shows as **degraded**), allocations with restart counts, tasks, nodes (ready/drain), active deployments. Multi-cluster via settings, one click to switch.
