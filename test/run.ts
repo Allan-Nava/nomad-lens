@@ -8,6 +8,7 @@ import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { NomadClient, JobSummary, PlanResult, desiredFromJob, tokenSentInClear, taskEventIsOom, mapPool } from '../src/core/api';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from '../src/core/report';
 import { ACTIONS, confirmMessage } from '../src/core/actions';
+import { aggregateDeployment, deployStatus, deployStatusBar } from '../src/core/deploy';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 
 // Spec di riferimento usato dai test di integrazione. A livello di modulo cosi'
@@ -65,7 +66,19 @@ async function main(): Promise<void> {
         { id: 'n1', name: 'worker-01', status: 'ready', drain: false },
         { id: 'n2', name: 'worker-02', status: 'ready', drain: true },
       ],
-      [{ id: 'd1', jobId: 'packager', status: 'running', description: 'canary in corso' }]
+      [
+        {
+          id: 'd1',
+          jobId: 'packager',
+          status: 'running',
+          description: 'canary in corso',
+          desired: 3,
+          placed: 2,
+          healthy: 1,
+          unhealthy: 0,
+          canaries: 1,
+        },
+      ]
     );
     const problemsSection = md.split('## ⚠ Da guardare')[1].split('## Tutti i job')[0];
     assert.ok(problemsSection.includes('| packager |'), 'packager should be flagged');
@@ -179,6 +192,30 @@ async function main(): Promise<void> {
     assert.deepStrictEqual(allocWarnings({ restarts: 5, oom: false }), ['restart loop ×5']);
     assert.deepStrictEqual(allocWarnings({ restarts: 0, oom: true }), ['OOM']);
     assert.deepStrictEqual(allocWarnings({ restarts: 4, oom: true }), ['OOM', 'restart loop ×4']);
+  });
+
+  await test('deploy: aggrega i task group, deriva stato e riga status bar', () => {
+    const agg = aggregateDeployment({
+      web: { DesiredTotal: 3, PlacedAllocs: 3, HealthyAllocs: 2, UnhealthyAllocs: 0, DesiredCanaries: 1 },
+      api: { DesiredTotal: 2, PlacedAllocs: 2, HealthyAllocs: 2, UnhealthyAllocs: 0 },
+    });
+    assert.deepStrictEqual(agg, { desired: 5, placed: 5, healthy: 4, unhealthy: 0, canaries: 1 });
+    assert.deepStrictEqual(aggregateDeployment(null), { desired: 0, placed: 0, healthy: 0, unhealthy: 0, canaries: 0 });
+
+    const running = deployStatus('running', agg);
+    assert.strictEqual(running.active, true);
+    assert.strictEqual(running.done, false);
+    assert.strictEqual(running.pct, 80); // 4/5
+
+    assert.strictEqual(deployStatus('successful', agg).ok, true);
+    assert.strictEqual(deployStatus('failed', agg).failed, true);
+    assert.strictEqual(deployStatus('cancelled', agg).failed, true);
+    assert.strictEqual(deployStatus('successful', { desired: 0, placed: 0, healthy: 0, unhealthy: 0, canaries: 0 }).pct, 100);
+
+    const bar = deployStatusBar('web', 'running', agg);
+    assert.ok(bar.includes('deploy web 4/5'));
+    assert.ok(bar.includes('canary 1'));
+    assert.ok(deployStatusBar('web', 'successful', agg).includes('$(check)'));
   });
 
   await test('actions: stop/restart distruttivi, stop richiede digitazione, start no', () => {

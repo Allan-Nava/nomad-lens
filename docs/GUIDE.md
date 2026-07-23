@@ -98,6 +98,15 @@ Dal menu contestuale del tree, azioni che **modificano** il cluster — sempre d
 
 Nessuna di queste ha un pulsante di default: `Invio` non le innesca.
 
+## 6c. Deployment watch
+
+Con un deployment attivo, la status bar mostra il progresso in tempo reale — `$(sync~spin) deploy <job> healthy/desired · canary N` — e ricevi una notifica quando:
+
+- il deploy **si completa** (✅) o **fallisce/viene annullato** (❌);
+- il deploy **si blocca** (allocazioni healthy ferme oltre `deploymentStallSeconds`).
+
+Settings: `nomadLens.deploymentWatch` (on/off, default on), `nomadLens.deploymentPollSeconds` (default 5), `nomadLens.deploymentStallSeconds` (default 90).
+
 ## 7. Snapshot del cluster
 
 **Nomad Lens: Cluster Snapshot Report** genera un markdown di salute:

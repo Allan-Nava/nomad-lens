@@ -4,6 +4,7 @@ import { ClusterConfig, NomadClient, JobSummary, AllocSummary, tokenSentInClear 
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
+import { deployStatus, deployStatusBar } from './core/deploy';
 
 type Node =
   | { kind: 'section'; label: 'Jobs' | 'Nodes' | 'Deployments' }
@@ -179,6 +180,61 @@ export function activate(context: vscode.ExtensionContext): void {
     logStreams.clear();
   };
 
+  // --- Deployment watch (NOM-2): progress in status bar + notifiche ------------
+  const deployBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 87);
+  context.subscriptions.push(deployBar);
+  const deployState = new Map<string, { status: string; healthy: number; since: number; warnedStall: boolean }>();
+
+  const pollDeployments = async () => {
+    const cfg = vscode.workspace.getConfiguration('nomadLens');
+    if (!client || !cfg.get<boolean>('deploymentWatch', true)) {
+      deployBar.hide();
+      return;
+    }
+    let deps;
+    try {
+      deps = await client.deployments();
+    } catch {
+      return; // transitorio: riprova al prossimo tick
+    }
+    const now = Date.now();
+    for (const d of deps) {
+      const prev = deployState.get(d.id);
+      if (prev && prev.status !== d.status) {
+        const s = deployStatus(d.status, d);
+        if (s.ok) void vscode.window.showInformationMessage(`Deploy ${d.jobId}: completato ✅`);
+        else if (s.failed) void vscode.window.showWarningMessage(`Deploy ${d.jobId}: ${d.status} — ${d.description}`);
+      }
+      if (!prev || prev.status !== d.status || prev.healthy !== d.healthy) {
+        deployState.set(d.id, { status: d.status, healthy: d.healthy, since: now, warnedStall: false });
+      }
+    }
+    for (const id of [...deployState.keys()]) if (!deps.some((d) => d.id === id)) deployState.delete(id);
+
+    const active = deps.find((d) => deployStatus(d.status, d).active);
+    if (!active) {
+      deployBar.hide();
+      return;
+    }
+    deployBar.text = deployStatusBar(active.jobId, active.status, active);
+    deployBar.tooltip = `Deploy ${active.jobId}: ${active.status} — healthy ${active.healthy}/${active.desired}, unhealthy ${active.unhealthy}`;
+    deployBar.show();
+
+    const st = deployState.get(active.id)!;
+    const stallMs = Math.max(10, cfg.get<number>('deploymentStallSeconds', 90)) * 1000;
+    if (!st.warnedStall && active.status === 'running' && now - st.since > stallMs) {
+      st.warnedStall = true;
+      void vscode.window.showWarningMessage(
+        `Deploy ${active.jobId} sembra bloccato: healthy ${active.healthy}/${active.desired} da ~${Math.round((now - st.since) / 1000)}s`
+      );
+    }
+  };
+
+  const pollSec = Math.max(2, vscode.workspace.getConfiguration('nomadLens').get<number>('deploymentPollSeconds', 5));
+  const deployTimer = setInterval(() => void pollDeployments(), pollSec * 1000);
+  context.subscriptions.push({ dispose: () => clearInterval(deployTimer) });
+  void pollDeployments();
+
   context.subscriptions.push(
     vscode.commands.registerCommand('nomadLens.refresh', () => tree.refresh()),
 
@@ -190,10 +246,13 @@ export function activate(context: vscode.ExtensionContext): void {
       );
       if (!picked) return;
       stopAllStreams();
+      deployState.clear();
+      deployBar.hide();
       client = new NomadClient(picked.c);
       warnIfInsecureToken(picked.c);
       updateStatus();
       tree.refresh();
+      void pollDeployments();
     }),
 
     vscode.commands.registerCommand('nomadLens.followLogs', async (node?: { alloc: AllocSummary; task: string }) => {

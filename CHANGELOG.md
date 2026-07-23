@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+### Aggiunto
+
+- **Deployment watch** (NOM-2): un poller osserva i deployment attivi e mostra il progresso (`healthy/desired`, canary) in una voce dedicata della status bar, con icona di stato. Notifiche su **successo**, **fallimento/annullamento** e su **blocco** (allocazioni healthy ferme oltre `deploymentStallSeconds`). Aggregazione task group e derivazione dello stato pure e testate in `core/deploy.ts`; `deployments()` ora espone `desired/placed/healthy/unhealthy/canaries`. Settings: `nomadLens.deploymentWatch`, `nomadLens.deploymentPollSeconds`, `nomadLens.deploymentStallSeconds`.
+
 ## 0.4.0
 
 ### Aggiunto

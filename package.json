@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -179,6 +179,23 @@
           ],
           "default": "Off",
           "description": "Valore usato dall'auto-fix di go.diagnostic.vulncheck: \"Off\" (silenzioso) oppure \"Imports\" (scansiona le dipendenze con govulncheck)."
+        },
+        "nomadLens.deploymentWatch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Osserva i deployment attivi: progress nella status bar + notifica su successo/fallimento/blocco."
+        },
+        "nomadLens.deploymentPollSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "description": "Intervallo di polling dei deployment (secondi)."
+        },
+        "nomadLens.deploymentStallSeconds": {
+          "type": "number",
+          "default": 90,
+          "minimum": 10,
+          "description": "Se un deployment running non progredisce (healthy invariato) per questo tempo, viene segnalato come bloccato."
         }
       }
     }

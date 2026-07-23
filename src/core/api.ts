@@ -2,6 +2,8 @@
 // so it can be integration-tested against `nomad agent -dev`.
 // Uses the global fetch available in Node 18+ / the VS Code extension host.
 
+import { aggregateDeployment, DeployTaskGroup } from './deploy';
+
 /** Ogni richiesta non-streaming aborta dopo questo timeout: un cluster
  *  irraggiungibile non deve lasciare l'albero appeso all'infinito. */
 export const REQUEST_TIMEOUT_MS = 8000;
@@ -117,6 +119,12 @@ export interface DeploymentSummary {
   jobId: string;
   status: string;
   description: string;
+  // progresso aggregato sui task group (NOM-2)
+  desired: number;
+  placed: number;
+  healthy: number;
+  unhealthy: number;
+  canaries: number;
 }
 
 export class NomadClient {
@@ -241,9 +249,18 @@ export class NomadClient {
   }
 
   async deployments(): Promise<DeploymentSummary[]> {
-    type Raw = { ID: string; JobID: string; Status: string; StatusDescription: string };
+    type Raw = {
+      ID: string;
+      JobID: string;
+      Status: string;
+      StatusDescription: string;
+      TaskGroups?: Record<string, DeployTaskGroup> | null;
+    };
     const raw = await this.getJson<Raw[]>('deployments');
-    return raw.map((d) => ({ id: d.ID, jobId: d.JobID, status: d.Status, description: d.StatusDescription }));
+    return raw.map((d) => {
+      const agg = aggregateDeployment(d.TaskGroups);
+      return { id: d.ID, jobId: d.JobID, status: d.Status, description: d.StatusDescription, ...agg };
+    });
   }
 
   /** Parses an HCL job spec into the JSON job the plan/register APIs expect. */
