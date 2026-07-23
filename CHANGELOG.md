@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+### Aggiunto
+
+- **Restart storm / OOM detector** (NOM-1): nel tree, le allocation con restart loop (≥3 restart) o uccise per **OOM** sono evidenziate con icona ⚠, descrizione e tooltip. L'OOM è dedotto dagli eventi task già inclusi nella risposta `allocations` (nessuna richiesta extra). Logica pura e testata: `taskEventIsOom` (`core/api.ts`) e `allocWarnings` (`core/report.ts`); `AllocSummary` ora espone `oom`.
+
 ## 0.2.5
 
 ### Modificato

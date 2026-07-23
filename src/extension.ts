@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ClusterConfig, NomadClient, JobSummary, AllocSummary, tokenSentInClear } from './core/api';
-import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth } from './core/report';
+import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 
 type Node =
@@ -54,10 +54,17 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
       case 'alloc': {
         const a = node.alloc;
         const item = new vscode.TreeItem(a.id.slice(0, 8), vscode.TreeItemCollapsibleState.Collapsed);
-        item.description = `${a.clientStatus} · ${a.nodeName}${a.restarts ? ` · restarts ${a.restarts}` : ''}`;
-        item.iconPath = new vscode.ThemeIcon(
-          a.clientStatus === 'running' ? 'pass-filled' : a.clientStatus === 'failed' ? 'error' : 'circle-outline'
-        );
+        const warns = allocWarnings(a);
+        if (warns.length) {
+          item.description = `⚠ ${warns.join(' · ')} · ${a.nodeName}`;
+          item.iconPath = new vscode.ThemeIcon('warning');
+          item.tooltip = `${a.clientStatus} — ${warns.join(', ')} · ${a.nodeName}`;
+        } else {
+          item.description = `${a.clientStatus} · ${a.nodeName}${a.restarts ? ` · restarts ${a.restarts}` : ''}`;
+          item.iconPath = new vscode.ThemeIcon(
+            a.clientStatus === 'running' ? 'pass-filled' : a.clientStatus === 'failed' ? 'error' : 'circle-outline'
+          );
+        }
         item.contextValue = `alloc-${a.clientStatus}`;
         return item;
       }

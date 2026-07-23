@@ -16,6 +16,20 @@ export function desiredFromJob(job: { TaskGroups?: { Count?: number }[] | null }
   return (job.TaskGroups ?? []).reduce((n, tg) => n + (tg.Count ?? 0), 0);
 }
 
+export interface NomadTaskEvent {
+  Type?: string;
+  Time?: number;
+  DisplayMessage?: string;
+  Details?: Record<string, string>;
+}
+
+/** True se un evento task indica un kill per OOM (out of memory). Pura e testabile. */
+export function taskEventIsOom(ev: NomadTaskEvent): boolean {
+  if (ev.Details && (ev.Details.oom_killed === 'true' || ev.Details.oom === 'true')) return true;
+  const msg = (ev.DisplayMessage ?? '').toLowerCase();
+  return msg.includes('out of memory') || msg.includes('oom');
+}
+
 /** True se un token ACL verrebbe inviato in chiaro: presente, su http://,
  *  verso un host non locale. Pura e testabile. */
 export function tokenSentInClear(address: string, tokenPresent: boolean): boolean {
@@ -58,6 +72,8 @@ export interface AllocSummary {
   nodeName: string;
   tasks: string[];
   restarts: number;
+  /** almeno un task è stato ucciso per OOM (dedotto dagli eventi). */
+  oom: boolean;
 }
 
 export interface NodeSummary {
@@ -168,19 +184,23 @@ export class NomadClient {
       TaskGroup: string;
       ClientStatus: string;
       NodeName?: string;
-      TaskStates?: Record<string, { Restarts?: number }>;
+      TaskStates?: Record<string, { Restarts?: number; Events?: NomadTaskEvent[] }>;
     };
     const raw = await this.getJson<Raw[]>(`job/${encodeURIComponent(jobId)}/allocations`);
-    return raw.map((a) => ({
-      id: a.ID,
-      name: a.Name,
-      jobId: a.JobID,
-      taskGroup: a.TaskGroup,
-      clientStatus: a.ClientStatus,
-      nodeName: a.NodeName ?? '',
-      tasks: Object.keys(a.TaskStates ?? {}),
-      restarts: Object.values(a.TaskStates ?? {}).reduce((n, t) => n + (t.Restarts ?? 0), 0),
-    }));
+    return raw.map((a) => {
+      const states = Object.values(a.TaskStates ?? {});
+      return {
+        id: a.ID,
+        name: a.Name,
+        jobId: a.JobID,
+        taskGroup: a.TaskGroup,
+        clientStatus: a.ClientStatus,
+        nodeName: a.NodeName ?? '',
+        tasks: Object.keys(a.TaskStates ?? {}),
+        restarts: states.reduce((n, t) => n + (t.Restarts ?? 0), 0),
+        oom: states.some((t) => (t.Events ?? []).some(taskEventIsOom)),
+      };
+    });
   }
 
   /** Full allocation object (task states with events) for incident bundles. */

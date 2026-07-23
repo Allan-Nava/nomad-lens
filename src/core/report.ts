@@ -24,6 +24,15 @@ function icon(status: string): string {
   return STATUS_ICON[status] ?? '❔';
 }
 
+/** Segnali di allarme su un'allocation: kill da OOM e restart loop oltre soglia.
+ *  Puro e testabile — cuore del detector NOM-1. */
+export function allocWarnings(a: { restarts: number; oom: boolean }, restartThreshold = 3): string[] {
+  const w: string[] = [];
+  if (a.oom) w.push('OOM');
+  if (a.restarts >= restartThreshold) w.push(`restart loop ×${a.restarts}`);
+  return w;
+}
+
 /** Effective health of a job: running-but-incomplete counts as degraded. */
 export function jobHealth(j: JobSummary): string {
   if (j.status === 'running' && j.failed > 0) return 'degraded';

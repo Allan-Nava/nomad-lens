@@ -5,8 +5,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
-import { NomadClient, JobSummary, PlanResult, desiredFromJob, tokenSentInClear } from '../src/core/api';
-import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth } from '../src/core/report';
+import { NomadClient, JobSummary, PlanResult, desiredFromJob, tokenSentInClear, taskEventIsOom } from '../src/core/api';
+import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from '../src/core/report';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 
 // Spec di riferimento usato dai test di integrazione. A livello di modulo cosi'
@@ -122,6 +122,7 @@ async function main(): Promise<void> {
         nodeName: 'worker-02',
         tasks: ['app'],
         restarts: 4,
+        oom: true,
       },
       allocRaw: {
         TaskStates: {
@@ -142,6 +143,21 @@ async function main(): Promise<void> {
     assert.ok(bundle.markdown.includes('restarts: 4'));
     assert.strictEqual(bundle.files.length, 2);
     assert.ok(bundle.files.some((f) => f.name === 'app.stderr.log' && f.content === 'boom\n'));
+  });
+
+  await test('taskEventIsOom: riconosce OOM da details o messaggio', () => {
+    assert.strictEqual(taskEventIsOom({ Details: { oom_killed: 'true' } }), true);
+    assert.strictEqual(taskEventIsOom({ DisplayMessage: 'Out of memory (OOM) killed' }), true);
+    assert.strictEqual(taskEventIsOom({ Type: 'Terminated', DisplayMessage: 'Exit Code: 0' }), false);
+    assert.strictEqual(taskEventIsOom({}), false);
+  });
+
+  await test('allocWarnings: OOM e restart loop oltre soglia (default 3)', () => {
+    assert.deepStrictEqual(allocWarnings({ restarts: 0, oom: false }), []);
+    assert.deepStrictEqual(allocWarnings({ restarts: 2, oom: false }), []); // sotto soglia
+    assert.deepStrictEqual(allocWarnings({ restarts: 5, oom: false }), ['restart loop ×5']);
+    assert.deepStrictEqual(allocWarnings({ restarts: 0, oom: true }), ['OOM']);
+    assert.deepStrictEqual(allocWarnings({ restarts: 4, oom: true }), ['OOM', 'restart loop ×4']);
   });
 
   await test('desiredFromJob: somma i Count dei task group (0 se assenti)', () => {

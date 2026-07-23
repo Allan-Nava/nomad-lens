@@ -14,7 +14,7 @@ Feature e infrastruttura spedite nella serie 0.2.x.
 
 ## v0.3 — Daily driver
 
-- [ ] **NOM-1 — Restart storm / OOM detector**: evidenziare nel tree i job con restart loop e gli exit da OOM (stats API: memoria usata vs allocata).
+- [x] **NOM-1 — Restart storm / OOM detector**: le allocation con restart loop (≥3) o kill da OOM sono evidenziate nel tree (icona ⚠ + descrizione), dedotto dagli eventi task già presenti nella lista allocation (nessuna richiesta extra). Logica pura `taskEventIsOom`/`allocWarnings`, testata.
 - [ ] **NOM-2 — Deployment watch**: dopo un deploy, progress canary/rolling nella status bar + notifica se fallisce o si blocca.
 - [ ] **NOM-3 — Azioni con conferma**: restart allocation, stop/start job (doppia conferma, mai default).
 - [ ] **NOM-4 — Grep cross-alloc**: cerca una stringa nei log di tutte le allocation di un job in parallelo, risultati con link.
