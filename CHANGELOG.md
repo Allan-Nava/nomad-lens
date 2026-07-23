@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+### Aggiunto
+
+- Test di regressione (TDD) `hcl fixture: nessun blocco single-line multi-argomento`: linta la spec HCL di riferimento e blocca a monte la sintassi che HCL2 rifiuta. Gira **sempre**, anche senza il binario `nomad` (a differenza dei test di integrazione), cosi' il bug corretto in 0.1.4 non puo' piu' sfuggire in locale. Fixture HCL spostata a livello di modulo.
+
 ## 0.1.4
 
 ### Corretto

@@ -8,6 +8,28 @@ import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { NomadClient, JobSummary, PlanResult } from '../src/core/api';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth } from '../src/core/report';
 
+// Spec di riferimento usato dai test di integrazione. A livello di modulo cosi'
+// da poterlo lintare anche quando `nomad` non c'e' (integrazione skippata).
+const HCL = `
+job "lens-demo" {
+  datacenters = ["dc1"]
+  type = "service"
+  group "web" {
+    count = 2
+    task "app" {
+      driver = "docker"
+      config {
+        image = "nginx:1.25"
+      }
+      resources {
+        cpu    = 100
+        memory = 64
+      }
+    }
+  }
+}
+`;
+
 let failures = 0;
 function test(name: string, fn: () => void | Promise<void>): Promise<void> {
   return Promise.resolve()
@@ -121,31 +143,26 @@ async function main(): Promise<void> {
     assert.ok(bundle.files.some((f) => f.name === 'app.stderr.log' && f.content === 'boom\n'));
   });
 
+  // Regressione: HCL2 (Nomad >= 1.x) rifiuta un blocco single-line con piu' di
+  // un argomento, es. `resources { cpu = 100, memory = 64 }`. Girava solo in CI
+  // (dove `nomad` c'e'); questo lint gira sempre e blocca la fixture a monte.
+  await test('hcl fixture: nessun blocco single-line multi-argomento (HCL2)', () => {
+    const bad = HCL.split('\n')
+      .map((line, i) => ({ n: i + 1, line }))
+      // ignora le virgole dentro le stringhe (es. un valore "a,b")
+      .filter(({ line }) => /\{[^{}]*,[^{}]*\}/.test(line.replace(/"[^"]*"/g, '""')));
+    assert.deepStrictEqual(
+      bad.map((b) => b.n),
+      [],
+      `blocchi single-line multi-arg alle righe: ${bad.map((b) => `${b.n} (${b.line.trim()})`).join(', ')}`
+    );
+  });
+
   // --- integration: throwaway nomad agent -dev ----------------------------------
   const bin = process.env.NOMAD_BIN || 'nomad';
   const port = 44000 + Math.floor(Math.random() * 1000);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nomadlens-'));
   let server: ChildProcess | null = null;
-
-  const HCL = `
-job "lens-demo" {
-  datacenters = ["dc1"]
-  type = "service"
-  group "web" {
-    count = 2
-    task "app" {
-      driver = "docker"
-      config {
-        image = "nginx:1.25"
-      }
-      resources {
-        cpu    = 100
-        memory = 64
-      }
-    }
-  }
-}
-`;
 
   try {
     if (spawnSync(bin, ['version'], { stdio: 'ignore' }).error) {
