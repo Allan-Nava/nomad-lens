@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.7
+
+### Corretto
+
+- `publisher` in `package.json` corretto in `allannava95` (era il placeholder `allan-nava`, che non combaciava con il publisher reale sul Marketplace). Sblocca il publish automatico: l'extension id diventa `allannava95.nomad-lens`. Il `VSCE_PAT` in CI deve appartenere a questo publisher.
+
 ## 0.1.6
 
 ### Modificato
