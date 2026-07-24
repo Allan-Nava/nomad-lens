@@ -16,7 +16,7 @@ import {
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings, snapshotFileName } from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
-import { deployStatus, deployStatusBar } from './core/deploy';
+import { deployStatus, deployStatusBar, deployNotification, isDeployStalled } from './core/deploy';
 
 type Node =
   | { kind: 'section'; label: 'Jobs' | 'Nodes' | 'Deployments' }
@@ -212,11 +212,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const now = Date.now();
     for (const d of deps) {
       const prev = deployState.get(d.id);
-      if (prev && prev.status !== d.status) {
-        const s = deployStatus(d.status, d);
-        if (s.ok) void vscode.window.showInformationMessage(`Deploy ${d.jobId}: completato ✅`);
-        else if (s.failed) void vscode.window.showWarningMessage(`Deploy ${d.jobId}: ${d.status} — ${d.description}`);
-      }
+      const notice = deployNotification(prev?.status, d.jobId, d.status, d.description);
+      if (notice?.kind === 'success') void vscode.window.showInformationMessage(notice.message);
+      else if (notice?.kind === 'failure') void vscode.window.showWarningMessage(notice.message);
       if (!prev || prev.status !== d.status || prev.healthy !== d.healthy) {
         deployState.set(d.id, { status: d.status, healthy: d.healthy, since: now, warnedStall: false });
       }
@@ -234,7 +232,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const st = deployState.get(active.id)!;
     const stallMs = Math.max(10, cfg.get<number>('deploymentStallSeconds', 90)) * 1000;
-    if (!st.warnedStall && active.status === 'running' && now - st.since > stallMs) {
+    if (!st.warnedStall && isDeployStalled(active.status, now - st.since, stallMs)) {
       st.warnedStall = true;
       void vscode.window.showWarningMessage(
         `Deploy ${active.jobId} sembra bloccato: healthy ${active.healthy}/${active.desired} da ~${Math.round((now - st.since) / 1000)}s`

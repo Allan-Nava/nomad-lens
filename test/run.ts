@@ -8,7 +8,13 @@ import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { NomadClient, JobSummary, PlanResult, desiredFromJob, tokenSentInClear, taskEventIsOom, mapPool } from '../src/core/api';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings, snapshotFileName } from '../src/core/report';
 import { ACTIONS, confirmMessage } from '../src/core/actions';
-import { aggregateDeployment, deployStatus, deployStatusBar } from '../src/core/deploy';
+import {
+  aggregateDeployment,
+  deployStatus,
+  deployStatusBar,
+  deployNotification,
+  isDeployStalled,
+} from '../src/core/deploy';
 import { grepLogs, renderGrepReport, LogSource } from '../src/core/grep';
 import { summarizeJob, compareJobSpecs, renderComparison, jobImages, renderImageInventory, RawJob } from '../src/core/drift';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
@@ -29,6 +35,29 @@ job "lens-demo" {
       resources {
         cpu    = 100
         memory = 64
+      }
+    }
+  }
+}
+`;
+
+// Job raw_exec: gira davvero anche senza Docker (per testare le azioni mutative
+// su un'alloc running). `cores` invece di `cpu`: in VM CpuShares può essere 0.
+const RAW_HCL = `
+job "lens-run" {
+  datacenters = ["dc1"]
+  type = "service"
+  group "w" {
+    count = 1
+    task "app" {
+      driver = "raw_exec"
+      config {
+        command = "/bin/sh"
+        args    = ["-c", "while true; do echo tick; sleep 2; done"]
+      }
+      resources {
+        cores  = 1
+        memory = 32
       }
     }
   }
@@ -297,6 +326,21 @@ async function main(): Promise<void> {
     assert.ok(deployStatusBar('web', 'successful', agg).includes('$(check)'));
   });
 
+  await test('deployNotification: notifica solo sui cambi di stato terminali', () => {
+    assert.strictEqual(deployNotification(undefined, 'web', 'running', ''), null); // primo giro
+    assert.strictEqual(deployNotification('running', 'web', 'running', ''), null); // nessun cambio
+    assert.strictEqual(deployNotification('running', 'web', 'successful', '')?.kind, 'success');
+    assert.strictEqual(deployNotification('running', 'web', 'failed', 'boom')?.kind, 'failure');
+    assert.strictEqual(deployNotification('running', 'web', 'cancelled', '')?.kind, 'failure');
+    assert.strictEqual(deployNotification('pending', 'web', 'running', ''), null); // running non notifica
+  });
+
+  await test('isDeployStalled: solo running e oltre soglia', () => {
+    assert.strictEqual(isDeployStalled('running', 5000, 3000), true);
+    assert.strictEqual(isDeployStalled('running', 1000, 3000), false);
+    assert.strictEqual(isDeployStalled('successful', 999999, 3000), false);
+  });
+
   await test('actions: stop/restart distruttivi, stop richiede digitazione, start no', () => {
     assert.strictEqual(ACTIONS.stopJob.destructive, true);
     assert.strictEqual(ACTIONS.stopJob.requireType, true);
@@ -377,7 +421,10 @@ async function main(): Promise<void> {
     if (spawnSync(bin, ['version'], { stdio: 'ignore' }).error) {
       throw new Error(`binario '${bin}' non disponibile`);
     }
-    fs.writeFileSync(path.join(tmp, 'config.hcl'), `ports { http = ${port} }\n`);
+    fs.writeFileSync(
+      path.join(tmp, 'config.hcl'),
+      `ports { http = ${port} }\nplugin "raw_exec" {\n  config {\n    enabled = true\n  }\n}\n`
+    );
     server = spawn(bin, ['agent', '-dev', `-config=${path.join(tmp, 'config.hcl')}`], { stdio: 'ignore' });
     server.on('error', () => {});
 
@@ -439,6 +486,40 @@ async function main(): Promise<void> {
         await new Promise((r) => setTimeout(r, 200));
       }
       assert.fail('lens-stopme ancora attivo dopo stopJob');
+    });
+
+    await test('integration: restartAllocation + startJob su alloc raw_exec running', async () => {
+      const spec = await client.parseHcl(RAW_HCL);
+      await client.registerJob(spec);
+      // attendi un'allocazione running (raw_exec parte in fretta)
+      let allocId = '';
+      for (let i = 0; i < 60; i++) {
+        const running = (await client.allocations('lens-run')).find((a) => a.clientStatus === 'running');
+        if (running) {
+          allocId = running.id;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      assert.ok(allocId, 'nessuna alloc running per lens-run');
+
+      // restart: non deve lanciare
+      await client.restartAllocation(allocId);
+
+      // stop poi start: il job deve tornare su
+      await client.stopJob('lens-run');
+      for (let i = 0; i < 20; i++) {
+        const j = (await client.jobs()).find((x) => x.id === 'lens-run');
+        if (!j || j.status === 'dead') break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      await client.startJob('lens-run');
+      for (let i = 0; i < 40; i++) {
+        const j = (await client.jobs()).find((x) => x.id === 'lens-run');
+        if (j && j.status !== 'dead') return;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      assert.fail('startJob non ha riportato su lens-run');
     });
   } catch (err) {
     console.log(`skip integration tests (${err})`);

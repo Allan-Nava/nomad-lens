@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.2
+
+Hardening dei test sul glue finora scoperto.
+
+### Aggiunto
+
+- Test di integrazione per le azioni mutative `restartAllocation` e `startJob`: il dev agent dei test ora abilita `raw_exec` (con `cores`, robusto anche in VM con `CpuShares=0`), così si verificano su un'allocazione realmente *running* — non più solo `stopJob`. Verificato su host e in container.
+- Logica del deployment watch estratta in funzioni pure e testate: `deployNotification` (notifica solo sui cambi verso stati terminali) e `isDeployStalled` (running oltre soglia). Il poller nel glue ora le usa.
+
 ## 0.9.1
 
 ### Aggiunto

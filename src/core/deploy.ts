@@ -47,6 +47,29 @@ export function deployStatus(status: string, agg: DeployAgg): DeployStatus {
   return { pct, active, done: ok || failed, ok, failed };
 }
 
+export type DeployNotice = { kind: 'success' | 'failure'; message: string } | null;
+
+/** Notifica da emettere quando lo stato di un deployment cambia rispetto al
+ *  precedente giro di polling. Pura e testabile. */
+export function deployNotification(
+  prevStatus: string | undefined,
+  jobId: string,
+  status: string,
+  description: string
+): DeployNotice {
+  if (!prevStatus || prevStatus === status) return null;
+  if (status === 'successful') return { kind: 'success', message: `Deploy ${jobId}: completato ✅` };
+  if (status === 'failed' || status === 'cancelled') {
+    return { kind: 'failure', message: `Deploy ${jobId}: ${status} — ${description}` };
+  }
+  return null;
+}
+
+/** True se un deployment running non progredisce da troppo tempo. Pura. */
+export function isDeployStalled(status: string, elapsedMs: number, thresholdMs: number): boolean {
+  return status === 'running' && elapsedMs > thresholdMs;
+}
+
 /** Testo per la status bar (sintassi `$(icon)` di VS Code, ma è solo una stringa). */
 export function deployStatusBar(jobId: string, status: string, agg: DeployAgg): string {
   const s = deployStatus(status, agg);
