@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+
+### Aggiunto
+
+- **Image inventory** (NOM-6): comando *Image Inventory (all clusters)* — matrice job × cluster con l'immagine docker per cella, e marcatore `≠` sui job con drift di immagine tra i cluster dove esistono. Fetch a concorrenza limitata; rendering puro `renderImageInventory` in `core/drift.ts`, testato.
+
 ## 0.7.0
 
 ### Aggiunto

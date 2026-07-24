@@ -100,3 +100,35 @@ export function renderComparison(jobId: string, labelA: string, labelB: string, 
   lines.push('');
   return lines.join('\n');
 }
+
+// --- Image inventory (NOM-6) -------------------------------------------------
+
+export interface ClusterInventory {
+  cluster: string;
+  jobs: { id: string; images: string[] }[];
+}
+
+/** Tabella job × cluster → immagini docker. `drift` marca i job con immagini
+ *  diverse tra i cluster in cui esistono. */
+export function renderImageInventory(data: ClusterInventory[]): string {
+  const clusters = data.map((d) => d.cluster);
+  const jobIds = [...new Set(data.flatMap((d) => d.jobs.map((j) => j.id)))].sort();
+  const lines: string[] = [
+    '# Image inventory',
+    '',
+    `${jobIds.length} job × ${clusters.length} cluster.`,
+    '',
+    `| Job | ${clusters.join(' | ')} | drift |`,
+    `|---|${clusters.map(() => '---').join('|')}|:-:|`,
+  ];
+  for (const id of jobIds) {
+    const perCluster = data.map((d) => d.jobs.find((j) => j.id === id));
+    const cells = perCluster.map((j) => (j && j.images.length ? j.images.join('<br>') : '—'));
+    const present = perCluster.filter((j): j is { id: string; images: string[] } => !!j);
+    const distinct = new Set(present.map((j) => [...j.images].sort().join(',')));
+    const drift = present.length > 1 && distinct.size > 1 ? '≠' : '';
+    lines.push(`| ${id} | ${cells.join(' | ')} | ${drift} |`);
+  }
+  lines.push('');
+  return lines.join('\n');
+}

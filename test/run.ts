@@ -10,7 +10,7 @@ import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWa
 import { ACTIONS, confirmMessage } from '../src/core/actions';
 import { aggregateDeployment, deployStatus, deployStatusBar } from '../src/core/deploy';
 import { grepLogs, renderGrepReport, LogSource } from '../src/core/grep';
-import { summarizeJob, compareJobSpecs, renderComparison, jobImages, RawJob } from '../src/core/drift';
+import { summarizeJob, compareJobSpecs, renderComparison, jobImages, renderImageInventory, RawJob } from '../src/core/drift';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 
 // Spec di riferimento usato dai test di integrazione. A livello di modulo cosi'
@@ -219,6 +219,22 @@ async function main(): Promise<void> {
     const md = renderComparison('web', 'prod', 'dev', rows);
     assert.ok(md.includes('prod vs dev'));
     assert.ok(md.includes('≠'));
+  });
+
+  await test('renderImageInventory: matrice job×cluster e marcatore drift', () => {
+    const md = renderImageInventory([
+      { cluster: 'prod', jobs: [{ id: 'web', images: ['nginx:1.27'] }, { id: 'api', images: ['api:2.0'] }] },
+      { cluster: 'dev', jobs: [{ id: 'web', images: ['nginx:1.25'] }] },
+    ]);
+    assert.ok(md.includes('| Job | prod | dev | drift |'));
+    // web ha immagini diverse tra prod e dev -> drift
+    const webRow = md.split('\n').find((l) => l.startsWith('| web |'))!;
+    assert.ok(webRow.includes('nginx:1.27') && webRow.includes('nginx:1.25'));
+    assert.ok(webRow.trimEnd().endsWith('≠ |'), 'web deve essere marcato drift');
+    // api esiste solo in prod -> cella '—' in dev, nessun drift
+    const apiRow = md.split('\n').find((l) => l.startsWith('| api |'))!;
+    assert.ok(apiRow.includes('—'));
+    assert.ok(!apiRow.trimEnd().endsWith('≠ |'), 'api presente in un solo cluster: niente drift');
   });
 
   await test('grepLogs: match case-insensitive di default, numeri di riga, opzione sensibile', () => {

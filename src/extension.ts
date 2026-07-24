@@ -2,7 +2,15 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ClusterConfig, NomadClient, JobSummary, AllocSummary, tokenSentInClear, mapPool } from './core/api';
 import { grepLogs, renderGrepReport, LogSource } from './core/grep';
-import { summarizeJob, compareJobSpecs, renderComparison, RawJob } from './core/drift';
+import {
+  summarizeJob,
+  compareJobSpecs,
+  renderComparison,
+  jobImages,
+  renderImageInventory,
+  ClusterInventory,
+  RawJob,
+} from './core/drift';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
@@ -456,6 +464,39 @@ export function activate(context: vscode.ExtensionContext): void {
         await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
       } catch (err) {
         void vscode.window.showErrorMessage(`Compare clusters fallito — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.imageInventory', async () => {
+      const all = clusters();
+      if (!all.length) {
+        void vscode.window.showWarningMessage('Nessun cluster configurato (nomadLens.clusters).');
+        return;
+      }
+      try {
+        const data = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Notification, title: 'Nomad Lens: image inventory…' },
+          async (): Promise<ClusterInventory[]> => {
+            const out: ClusterInventory[] = [];
+            for (const c of all) {
+              const cl = new NomadClient(c);
+              const list = await cl.jobs();
+              const jobs = await mapPool(list, 8, async (j) => ({
+                id: j.id,
+                images: jobImages((await cl.job(j.id)) as unknown as RawJob),
+              }));
+              out.push({ cluster: c.name, jobs });
+            }
+            return out;
+          }
+        );
+        const doc = await vscode.workspace.openTextDocument({
+          content: renderImageInventory(data),
+          language: 'markdown',
+        });
+        await vscode.window.showTextDocument(doc, { preview: true });
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Image inventory fallito — ${err}`);
       }
     })
   );
