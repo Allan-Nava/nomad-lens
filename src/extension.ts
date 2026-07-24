@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ClusterConfig, NomadClient, JobSummary, AllocSummary, tokenSentInClear, mapPool } from './core/api';
 import { grepLogs, renderGrepReport, LogSource } from './core/grep';
+import { summarizeJob, compareJobSpecs, renderComparison, RawJob } from './core/drift';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
@@ -426,6 +427,35 @@ export function activate(context: vscode.ExtensionContext): void {
         await vscode.window.showTextDocument(doc, { preview: true });
       } catch (err) {
         void vscode.window.showErrorMessage(`Grep cross-alloc fallito — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.compareClusters', async (node?: { job: JobSummary }) => {
+      const all = clusters();
+      if (all.length < 2) {
+        void vscode.window.showWarningMessage('Servono almeno due cluster in nomadLens.clusters.');
+        return;
+      }
+      const jobId = node?.job.id ?? (await vscode.window.showInputBox({ prompt: 'Job id da confrontare tra due cluster' }));
+      if (!jobId) return;
+      const pickA = await vscode.window.showQuickPick(
+        all.map((c) => ({ label: c.name, description: c.address, c })),
+        { placeHolder: 'Cluster A' }
+      );
+      if (!pickA) return;
+      const pickB = await vscode.window.showQuickPick(
+        all.filter((c) => c.name !== pickA.c.name).map((c) => ({ label: c.name, description: c.address, c })),
+        { placeHolder: 'Cluster B' }
+      );
+      if (!pickB) return;
+      try {
+        const [ja, jb] = await Promise.all([new NomadClient(pickA.c).job(jobId), new NomadClient(pickB.c).job(jobId)]);
+        const rows = compareJobSpecs(summarizeJob(ja as unknown as RawJob), summarizeJob(jb as unknown as RawJob));
+        const md = renderComparison(jobId, pickA.c.name, pickB.c.name, rows);
+        const doc = await vscode.workspace.openTextDocument({ content: md, language: 'markdown' });
+        await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Compare clusters fallito — ${err}`);
       }
     })
   );

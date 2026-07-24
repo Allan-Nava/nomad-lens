@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+
+### Aggiunto
+
+- **Compare job across clusters** (NOM-5): dal menu del job, confronta lo stesso job su due cluster (scelti dai configurati) → tabella diff di `count`, `image`, `cpu`, `memory` ed `env`, con marcatore `≠` sulle differenze. API `job(id)`; logica pura `summarizeJob`/`compareJobSpecs`/`renderComparison` in `core/drift.ts`, testata.
+
 ## 0.6.0
 
 Completa la milestone v0.3 — Daily driver.

@@ -111,6 +111,10 @@ Settings: `nomadLens.deploymentWatch` (on/off, default on), `nomadLens.deploymen
 
 Click destro su un job → **Grep Logs Across Allocations**: digita una stringa e Nomad Lens cerca (case-insensitive) nei log `stdout`+`stderr` di **tutte** le allocation del job, in parallelo. Il risultato è un report markdown raggruppato per allocazione, con posizione `task/type:riga` per ogni match. Utile per "chi ha loggato questo errore?" su un job con molte istanze.
 
+## 6e. Compare job tra cluster (drift)
+
+Click destro su un job → **Compare Job Across Clusters**: scegli due cluster e Nomad Lens confronta lo stesso job, producendo una tabella diff di `count`, `image`, `cpu`, `memory` ed `env` (le righe diverse sono marcate `≠`). Utile per scovare il drift tra `dev` e `prod`.
+
 ## 7. Snapshot del cluster
 
 **Nomad Lens: Cluster Snapshot Report** genera un markdown di salute:

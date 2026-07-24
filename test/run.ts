@@ -10,6 +10,7 @@ import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWa
 import { ACTIONS, confirmMessage } from '../src/core/actions';
 import { aggregateDeployment, deployStatus, deployStatusBar } from '../src/core/deploy';
 import { grepLogs, renderGrepReport, LogSource } from '../src/core/grep';
+import { summarizeJob, compareJobSpecs, renderComparison, jobImages, RawJob } from '../src/core/drift';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 
 // Spec di riferimento usato dai test di integrazione. A livello di modulo cosi'
@@ -193,6 +194,31 @@ async function main(): Promise<void> {
     assert.deepStrictEqual(allocWarnings({ restarts: 5, oom: false }), ['restart loop ×5']);
     assert.deepStrictEqual(allocWarnings({ restarts: 0, oom: true }), ['OOM']);
     assert.deepStrictEqual(allocWarnings({ restarts: 4, oom: true }), ['OOM', 'restart loop ×4']);
+  });
+
+  await test('drift: summarizeJob + compareJobSpecs evidenziano image/count/env diversi', () => {
+    const mk = (image: string, count: number, env: Record<string, string>): RawJob => ({
+      ID: 'web',
+      TaskGroups: [
+        { Name: 'web', Count: count, Tasks: [{ Name: 'app', Config: { image }, Env: env, Resources: { CPU: 100, MemoryMB: 64 } }] },
+      ],
+    });
+    const a = summarizeJob(mk('nginx:1.25', 3, { LOG: 'info' }));
+    const b = summarizeJob(mk('nginx:1.27', 2, { LOG: 'debug' }));
+    assert.strictEqual(a.count, 3);
+    assert.deepStrictEqual(jobImages(mk('nginx:1.25', 3, {})), ['nginx:1.25']);
+
+    const rows = compareJobSpecs(a, b);
+    const byField = Object.fromEntries(rows.map((r) => [r.field, r]));
+    assert.strictEqual(byField['count'].same, false);
+    assert.strictEqual(byField['web/app · image'].same, false);
+    assert.strictEqual(byField['web/app · image'].a, 'nginx:1.25');
+    assert.strictEqual(byField['web/app · cpu'].same, true); // 100 == 100
+    assert.ok(byField['web/app · env LOG'] && byField['web/app · env LOG'].same === false);
+
+    const md = renderComparison('web', 'prod', 'dev', rows);
+    assert.ok(md.includes('prod vs dev'));
+    assert.ok(md.includes('≠'));
   });
 
   await test('grepLogs: match case-insensitive di default, numeri di riga, opzione sensibile', () => {

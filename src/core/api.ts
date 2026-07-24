@@ -242,6 +242,11 @@ export class NomadClient {
     return this.getJson(`allocation/${encodeURIComponent(allocId)}`);
   }
 
+  /** Full job spec JSON (TaskGroups/Tasks/Config/Env/Resources). */
+  async job(id: string): Promise<Record<string, unknown>> {
+    return this.getJson(`job/${encodeURIComponent(id)}`);
+  }
+
   async nodes(): Promise<NodeSummary[]> {
     type Raw = { ID: string; Name: string; Status: string; Drain: boolean };
     const raw = await this.getJson<Raw[]>('nodes');
