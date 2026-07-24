@@ -1,0 +1,65 @@
+# Nomad Lens — ambiente di test e demo in Docker.
+#
+#   docker compose run --rm tests          # esegue tutta la suite (unit + integrazione)
+#   docker compose --profile demo up        # Nomad dev su :4646 + job di esempio
+#
+# Il servizio `tests` avvia da sé un `nomad agent -dev` usa e getta (come la CI):
+# testa la logica end-to-end senza dipendere dal profilo demo.
+# Il profilo `demo` avvia invece un Nomad persistente da puntare con l'estensione
+# (nomadLens.clusters → http://127.0.0.1:4646).
+
+services:
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    working_dir: /app
+    # Il `nomad agent -dev` spawnato dai test di integrazione deve poter creare
+    # i propri cgroup: serve cgroup writable + cgroupns host.
+    privileged: true
+    cgroup: host
+    environment:
+      NOMAD_BIN: nomad
+    volumes:
+      - .:/app
+      # node_modules isolato: i binari nativi (esbuild/typescript) del container
+      # Linux non devono mischiarsi con quelli dell'host.
+      - nl_node_modules:/app/node_modules
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    command: sh -c "npm ci && npm test"
+
+  nomad:
+    profiles: ["demo"]
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    command: nomad agent -dev -bind 0.0.0.0 -config /etc/nomad/dev.hcl
+    privileged: true
+    cgroup: host
+    ports:
+      - "4646:4646"
+    volumes:
+      - ./docker/nomad-dev.hcl:/etc/nomad/dev.hcl:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    healthcheck:
+      test: ["CMD", "nomad", "node", "status"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  seed:
+    profiles: ["demo"]
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      nomad:
+        condition: service_healthy
+    environment:
+      NOMAD_ADDR: http://nomad:4646
+    volumes:
+      - ./docker/seed-job.nomad:/seed.nomad:ro
+    command: sh -c "nomad job run /seed.nomad && echo 'job di esempio registrato'"
+
+volumes:
+  nl_node_modules:

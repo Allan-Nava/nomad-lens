@@ -1,0 +1,17 @@
+# Immagine per eseguire l'intera suite (unit + integrazione) in modo riproducibile,
+# con lo stesso Nomad pinnato della CI. Usata da docker-compose.yml.
+FROM node:20-bookworm
+
+ARG NOMAD_VERSION=1.9.5
+# Popolato automaticamente da BuildKit con l'arch del target (amd64/arm64).
+ARG TARGETARCH
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends unzip curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
+  && curl -fsSL "https://releases.hashicorp.com/nomad/${NOMAD_VERSION}/nomad_${NOMAD_VERSION}_linux_${TARGETARCH}.zip" -o /tmp/nomad.zip \
+  && unzip -o /tmp/nomad.zip -d /usr/local/bin \
+  && rm /tmp/nomad.zip \
+  && nomad version
+
+WORKDIR /app

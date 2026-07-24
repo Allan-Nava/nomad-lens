@@ -3,6 +3,9 @@
 .claude/**
 docs/**
 site/**
+docker/**
+docker-compose.yml
+Dockerfile.test
 src/**
 test/**
 .test/**

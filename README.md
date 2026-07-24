@@ -38,6 +38,15 @@ npm run build        # bundle to dist/
 # F5 in VS Code launches the Extension Development Host
 ```
 
+### Con Docker
+
+```bash
+docker compose run --rm tests      # suite completa (unit + integrazione) in container, Nomad pinnato
+docker compose --profile demo up   # Nomad dev su http://127.0.0.1:4646 + job di esempio
+```
+
+`tests` esegue tutta la suite in modo riproducibile (gli stessi check della CI, con `nomad agent -dev` usa e getta interno). Il profilo `demo` avvia un Nomad persistente con un job di esempio (due allocation che loggano, con righe `error` per provare il grep): puntaci l'estensione via `nomadLens.clusters` → `http://127.0.0.1:4646`. Richiede Docker Desktop (i servizi girano `privileged` con cgroup writable perché il client Nomad crea i propri cgroup).
+
 The core (API client + report renderers) has no VS Code dependency and lives in `src/core/`. The integration test spins up `nomad agent -dev` on a random port, registers a sample job, and verifies plan diffs; if `nomad` is not installed the integration tests are skipped. Zero runtime dependencies: the Nomad HTTP API is consumed with Node's native fetch.
 
 ## Release & automation

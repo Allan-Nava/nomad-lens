@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1
+
+### Aggiunto
+
+- Ambiente Docker per test e demo: `Dockerfile.test` + `docker-compose.yml`. `docker compose run --rm tests` esegue l'intera suite (unit + **integrazione**) in container con Nomad 1.9.5 pinnato — verificato **23/23 verdi**, integrazione inclusa (i servizi girano `privileged` con cgroup writable, necessario al client Nomad). Profilo `demo` (`docker compose --profile demo up`): Nomad dev su `:4646` + job di esempio (raw_exec, due allocation che loggano, con righe `error` per il grep) da puntare con l'estensione. Esclusi dal `.vsix`.
+
 ## 0.9.0
 
 Completa la milestone v0.4 — Drift.
