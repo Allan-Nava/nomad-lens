@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0
+
+Completa la milestone v0.4 — Drift.
+
+### Aggiunto
+
+- **Snapshot su file** (NOM-7): comando *Save Cluster Snapshot to File* — scrive lo snapshot markdown in `nomadLens.snapshotPath` (cartella → `nomad-snapshot-<cluster>-<data>.md`, oppure file `.md` esatto; supporta `~`, crea le cartelle mancanti). Pensato per essere bindato a un task/scheduler esterno per il report mattutino. Nome file puro `snapshotFileName` in `core/report.ts`, testato.
+
 ## 0.8.0
 
 ### Aggiunto

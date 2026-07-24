@@ -6,7 +6,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { NomadClient, JobSummary, PlanResult, desiredFromJob, tokenSentInClear, taskEventIsOom, mapPool } from '../src/core/api';
-import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from '../src/core/report';
+import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings, snapshotFileName } from '../src/core/report';
 import { ACTIONS, confirmMessage } from '../src/core/actions';
 import { aggregateDeployment, deployStatus, deployStatusBar } from '../src/core/deploy';
 import { grepLogs, renderGrepReport, LogSource } from '../src/core/grep';
@@ -219,6 +219,12 @@ async function main(): Promise<void> {
     const md = renderComparison('web', 'prod', 'dev', rows);
     assert.ok(md.includes('prod vs dev'));
     assert.ok(md.includes('≠'));
+  });
+
+  await test('snapshotFileName: slug del cluster + data, estensione .md', () => {
+    assert.strictEqual(snapshotFileName('prod', '2026-07-24'), 'nomad-snapshot-prod-2026-07-24.md');
+    assert.strictEqual(snapshotFileName('ovh cluster/1', '2026-07-24'), 'nomad-snapshot-ovh-cluster-1-2026-07-24.md');
+    assert.strictEqual(snapshotFileName('', '2026-07-24'), 'nomad-snapshot-cluster-2026-07-24.md');
   });
 
   await test('renderImageInventory: matrice job×cluster e marcatore drift', () => {

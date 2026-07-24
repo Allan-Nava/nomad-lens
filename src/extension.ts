@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 import { ClusterConfig, NomadClient, JobSummary, AllocSummary, tokenSentInClear, mapPool } from './core/api';
 import { grepLogs, renderGrepReport, LogSource } from './core/grep';
 import {
@@ -11,7 +13,7 @@ import {
   ClusterInventory,
   RawJob,
 } from './core/drift';
-import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings } from './core/report';
+import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings, snapshotFileName } from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
 import { deployStatus, deployStatusBar } from './core/deploy';
@@ -497,6 +499,36 @@ export function activate(context: vscode.ExtensionContext): void {
         await vscode.window.showTextDocument(doc, { preview: true });
       } catch (err) {
         void vscode.window.showErrorMessage(`Image inventory fallito — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.snapshotToFile', async () => {
+      if (!client) return;
+      const active = client;
+      const cfg = vscode.workspace.getConfiguration('nomadLens');
+      let target = (cfg.get<string>('snapshotPath', '') ?? '').trim();
+      if (target.startsWith('~')) target = path.join(os.homedir(), target.slice(1));
+      if (!target) {
+        const folder = vscode.workspace.workspaceFolders?.[0];
+        if (!folder) {
+          void vscode.window.showWarningMessage('Imposta nomadLens.snapshotPath (o apri una cartella di lavoro).');
+          return;
+        }
+        target = folder.uri.fsPath;
+      }
+      try {
+        const [jobs, nodes, deployments] = await Promise.all([active.jobs(), active.nodes(), active.deployments()]);
+        const md = renderSnapshot(active.clusterName, jobs, nodes, deployments);
+        const date = new Date().toISOString().slice(0, 10);
+        const file = target.endsWith('.md') ? target : path.join(target, snapshotFileName(active.clusterName, date));
+        await fs.promises.mkdir(path.dirname(file), { recursive: true });
+        await fs.promises.writeFile(file, md, 'utf8');
+        const pick = await vscode.window.showInformationMessage(`Snapshot salvato: ${file}`, 'Apri');
+        if (pick === 'Apri') {
+          await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file));
+        }
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Snapshot su file fallito — ${err}`);
       }
     })
   );

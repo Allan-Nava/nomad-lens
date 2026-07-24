@@ -23,7 +23,7 @@ Feature e infrastruttura spedite nella serie 0.2.x.
 
 - [x] **NOM-5 — Compare clusters**: comando "Compare Job Across Clusters" → stesso job su due cluster, tabella diff di count/image/cpu/memory/env con marcatore ≠. Estrazione/confronto puri in `core/drift.ts` (testati).
 - [x] **NOM-6 — Image inventory**: comando "Image Inventory (all clusters)" → matrice job × cluster con l'immagine docker per cella e marcatore `≠` sui job con drift di immagine. Rendering puro `renderImageInventory` in `core/drift.ts` (testato).
-- [ ] **NOM-7 — Snapshot schedulabile**: comando che salva lo snapshot in un path configurabile (per il report mattutino in devops_hiway).
+- [x] **NOM-7 — Snapshot schedulabile**: comando "Save Cluster Snapshot to File" che scrive lo snapshot in `nomadLens.snapshotPath` (cartella → `nomad-snapshot-<cluster>-<data>.md`, oppure file `.md` esatto; supporta `~`). Nome file puro `snapshotFileName` (testato). Bindabile a un task/scheduler esterno per il report mattutino.
 
 ## Rilascio
 

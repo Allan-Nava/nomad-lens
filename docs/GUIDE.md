@@ -128,6 +128,8 @@ Dal titolo della vista Nomad → **Image Inventory (all clusters)**: Nomad Lens 
 
 Perfetto per il check del mattino o come baseline preflight prima di un intervento.
 
+**Salvarlo su file** — comando **Save Cluster Snapshot to File**: scrive lo snapshot in `nomadLens.snapshotPath`. Se il path è una cartella (o vuoto → cartella di lavoro) il file è `nomad-snapshot-<cluster>-<data>.md`; se termina in `.md` è il file esatto; supporta `~`. Così puoi bindare il comando a un task o a uno scheduler esterno per il report mattutino.
+
 ## 8. Auto-fix di `go.diagnostic.vulncheck`
 
 Se usi anche la Go extension, il suo default `go.diagnostic.vulncheck: "Prompt"` viene rifiutato da `gopls` (`Invalid settings: … invalid option "Prompt"`). All'avvio Nomad Lens rileva il caso e imposta un valore valido, con notifica e possibilità di annullare.

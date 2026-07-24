@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -99,6 +99,10 @@
       {
         "command": "nomadLens.imageInventory",
         "title": "Nomad Lens: Image Inventory (all clusters)"
+      },
+      {
+        "command": "nomadLens.snapshotToFile",
+        "title": "Nomad Lens: Save Cluster Snapshot to File"
       }
     ],
     "menus": {
@@ -220,6 +224,11 @@
           "default": 90,
           "minimum": 10,
           "description": "Se un deployment running non progredisce (healthy invariato) per questo tempo, viene segnalato come bloccato."
+        },
+        "nomadLens.snapshotPath": {
+          "type": "string",
+          "default": "",
+          "description": "Percorso dove salvare lo snapshot (comando Save Cluster Snapshot to File). Se è una cartella (o vuoto → cartella di lavoro) il file è nomad-snapshot-<cluster>-<data>.md; se termina in .md è il file esatto. Supporta ~."
         }
       }
     }

@@ -95,6 +95,13 @@ export function renderSnapshot(
   return lines.join('\n');
 }
 
+/** Nome file per lo snapshot su disco (NOM-7): `nomad-snapshot-<cluster>-<data>.md`.
+ *  `date` è una stringa già formattata (es. "2026-07-24"). Puro e testabile. */
+export function snapshotFileName(cluster: string, date: string): string {
+  const slug = cluster.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'cluster';
+  return `nomad-snapshot-${slug}-${date}.md`;
+}
+
 // --- plan diff ---------------------------------------------------------------
 
 function renderObjectDiff(obj: ObjectDiff, indent: string, out: string[]): void {
