@@ -2,7 +2,7 @@
 
 **HashiCorp Nomad operations inside VS Code** — the place where you already edit your job specs.
 
-🌐 **[Sito / landing page →](https://allan-nava.github.io/nomad-lens/)** · 📖 **[Guida d'uso completa →](docs/GUIDE.md)**
+🌐 **[Website / landing page →](https://allan-nava.github.io/nomad-lens/)** · 📖 **[Full user guide →](docs/GUIDE.md)**
 
 ## Features
 
@@ -38,14 +38,14 @@ npm run build        # bundle to dist/
 # F5 in VS Code launches the Extension Development Host
 ```
 
-### Con Docker
+### With Docker
 
 ```bash
-docker compose run --rm tests      # suite completa (unit + integrazione) in container, Nomad pinnato
-docker compose --profile demo up   # Nomad dev su http://127.0.0.1:4646 + job di esempio
+docker compose run --rm tests      # full suite (unit + integration) in a container, pinned Nomad
+docker compose --profile demo up   # dev Nomad on http://127.0.0.1:4646 + sample job
 ```
 
-`tests` esegue tutta la suite in modo riproducibile (gli stessi check della CI, con `nomad agent -dev` usa e getta interno). Il profilo `demo` avvia un Nomad persistente con un job di esempio (due allocation che loggano, con righe `error` per provare il grep): puntaci l'estensione via `nomadLens.clusters` → `http://127.0.0.1:4646`. Richiede Docker Desktop (i servizi girano `privileged` con cgroup writable perché il client Nomad crea i propri cgroup).
+`tests` runs the whole suite reproducibly (the same checks as CI, with an internal throwaway `nomad agent -dev`). The `demo` profile starts a persistent Nomad with a sample job (two allocations that log, including `error` lines to try the grep out): point the extension at it via `nomadLens.clusters` → `http://127.0.0.1:4646`. Requires Docker Desktop (the services run `privileged` with a writable cgroup, because the Nomad client creates its own cgroups).
 
 The core (API client + report renderers) has no VS Code dependency and lives in `src/core/`. The integration test spins up `nomad agent -dev` on a random port, registers a sample job, and verifies plan diffs; if `nomad` is not installed the integration tests are skipped. Zero runtime dependencies: the Nomad HTTP API is consumed with Node's native fetch.
 

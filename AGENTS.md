@@ -1,36 +1,36 @@
 # AGENTS.md — nomad-lens
 
-Estensione VS Code **Nomad Lens**: operations HashiCorp Nomad nell'editor — tree cluster/job/allocation/task, log follow, plan diff repo-vs-running, incident bundle, snapshot report. TypeScript + esbuild, zero dipendenze runtime (fetch nativo).
+**Nomad Lens** VS Code extension: HashiCorp Nomad operations inside the editor — cluster/job/allocation/task tree, log follow, plan diff repo-vs-running, incident bundle, snapshot report. TypeScript + esbuild, zero runtime dependencies (native fetch).
 
-Questo file definisce le regole operative per gli agent (Copilot, Claude, altri tool AI) quando lavorano in questo repository.
+This file defines the operational rules for agents (Copilot, Claude, other AI tools) working in this repository.
 
-## Regole di lavoro (SEMPRE)
+## Working rules (ALWAYS)
 
-- **TUTTO IN INGLESE**: codice (identificatori, commenti, stringhe utente, messaggi di errore/log) e documentazione (`README.md`, `CHANGELOG.md`, `BACKLOG.md`, `docs/`, JSDoc, messaggi di commit e titoli/descrizioni di PR e issue) si scrivono **solo in inglese**. La chat con l'utente resta in italiano.
-- **Ogni commit = release taggata `vX.Y.Z`**: nuova sezione in `CHANGELOG.md` (Keep a Changelog, in inglese) + `git tag -a vX.Y.Z -m "Release X.Y.Z"`. Bump `minor` per novita' sostanziali, `patch` per fix. Il `version` di package.json deve coincidere col tag. **Esenti**: auto-commit su `.claude/settings.json` e commit `report:` CI.
-- **MAI `git push`**: lo fa sempre l'utente. MAI `Co-Authored-By` nei commit.
-- **Gate prima di chiudere**: `npx tsc --noEmit` + `npm test` verdi (stessi check della CI).
-- **Logica nel core puro** `src/core/` (MAI import `vscode` li') con test in `test/run.ts`; `src/extension.ts` e' solo glue UI.
-- **SICUREZZA TOKEN**: token ACL solo da env var (`tokenEnv` = nome variabile) — MAI in settings/log/doc. Comandi mutativi sempre con conferma esplicita.
-- **MAI puntare i test ai cluster reali**: solo `nomad agent -dev` locale usa e getta.
-- **Todo -> `BACKLOG.md`** (item con id stabile `NOM-n`), niente TODO sparsi.
+- **EVERYTHING IN ENGLISH**: code (identifiers, comments, user-facing strings, error and log messages) and documentation (`README.md`, `CHANGELOG.md`, `BACKLOG.md`, `docs/`, `site/`, JSDoc, commit messages, PR and issue titles/bodies) are written **in English only**. Chat with the user stays in Italian.
+- **Every commit = tagged release `vX.Y.Z`**: new section in `CHANGELOG.md` (Keep a Changelog, in English) + `git tag -a vX.Y.Z -m "Release X.Y.Z"`. Bump `minor` for substantial features, `patch` for fixes. The `version` in package.json must match the tag. **Exempt**: auto-commits on `.claude/settings.json` and CI `report:` commits.
+- **NEVER `git push`**: the user always does it. NEVER `Co-Authored-By` in commits.
+- **Gate before closing**: `npx tsc --noEmit` + `npm test` green (the same checks as CI).
+- **Logic in the pure core** `src/core/` (NEVER import `vscode` there) with tests in `test/run.ts`; `src/extension.ts` is UI glue only.
+- **TOKEN SECURITY**: ACL tokens only from env vars (`tokenEnv` = the variable name) — NEVER in settings/logs/docs. Mutating commands always behind explicit confirmation.
+- **NEVER point the tests at real clusters**: only a local throwaway `nomad agent -dev`.
+- **Todos -> `BACKLOG.md`** (items with stable id `NOM-n`), no scattered TODOs.
 
-## Comandi
+## Commands
 
-- `npm run build` (bundle), `npm test` (unit + integrazione con nomad agent -dev), `npx tsc --noEmit` (typecheck)
-- `.vsix` locale: `npx @vscode/vsce package --no-dependencies`
-- Integrazione: serve `nomad` nel PATH; se manca si salta con notice. In CI viene scaricato pinnato.
+- `npm run build` (bundle), `npm test` (unit + integration with nomad agent -dev), `npx tsc --noEmit` (typecheck)
+- Local `.vsix`: `npx @vscode/vsce package --no-dependencies`
+- Integration: needs `nomad` on the PATH; if missing it is skipped with a notice. In CI it is downloaded pinned.
 
-## Trappole note
+## Known traps
 
-- `jobHealth`: job `running` con alloc mancanti o failed = **degraded** (cuore dello snapshot).
-- Il plan vuole il job in JSON: HCL passa prima da `POST /v1/jobs/parse` con `Canonicalize: true`.
-- Timestamp eventi Nomad in **nanosecondi**: dividere per 1e6 prima di `new Date()`.
-- Stream log (`follow=true`): chiudere sempre con l'AbortController su dispose/stop/cambio cluster.
-- In CI niente driver Docker: job registrati restano `pending`, i test non devono assumere alloc running.
-- `test/run.ts` senza top-level await (per tsc e' CJS): tutto dentro `main()`; spawn di binari esterni solo dopo check `spawnSync` + handler `on('error')`.
-- `publisher` in package.json e' placeholder: allinearlo prima del publish Marketplace.
+- `jobHealth`: a `running` job with missing or failed allocations = **degraded** (the heart of the snapshot).
+- The plan wants the job as JSON: HCL goes through `POST /v1/jobs/parse` first with `Canonicalize: true`.
+- Nomad event timestamps are in **nanoseconds**: divide by 1e6 before `new Date()`.
+- Log stream (`follow=true`): always close it with the AbortController on dispose/stop/cluster switch.
+- No Docker driver in CI: registered jobs stay `pending`, tests must not assume running allocations.
+- `test/run.ts` has no top-level await (it is CJS for tsc): everything inside `main()`; spawn external binaries only after a `spawnSync` check + an `on('error')` handler.
+- `publisher` in package.json is a placeholder: align it before publishing to the Marketplace.
 
-## Puntatori
+## Pointers
 
-- Backlog: `BACKLOG.md` - CI: `.github/workflows/ci.yml` - Repo gemelli: `ansible-vars-lens`, `nats-lens`
+- Backlog: `BACKLOG.md` - CI: `.github/workflows/ci.yml` - Twin repos: `ansible-vars-lens`, `nats-lens`

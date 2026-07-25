@@ -1,30 +1,30 @@
 # Backlog — nomad-lens
 
-Sorgente unica dei todo. Id stabili `NOM-n`; spuntare, non cancellare. Ogni `##` è una milestone su GitHub (sync automatico).
+Single source of truth for todos. Stable ids `NOM-n`; check items off, never delete them. Every `##` is a GitHub milestone (synced automatically).
 
-## v0.2 — Rilasciato
+## v0.2 — Released
 
-Feature e infrastruttura spedite nella serie 0.2.x.
+Features and infrastructure shipped in the 0.2.x series.
 
-- [x] **NOM-9 — Publish automatico su tag**: job `publish` in `ci.yml` che su tag `v*` fa `vsce publish` (Marketplace) + `ovsx publish` (Open VSX, opzionale), con guard tag == `package.json`. Secret `VSCE_PAT` (e opz. `OVSX_PAT`).
-- [x] **NOM-10 — Backlog/milestone sync**: workflow `backlog-sync.yml` + `scripts/backlog-sync.mjs` che rende milestone e issue GitHub un mirror di `BACKLOG.md` (id `NOM-n` ancorati via marker, idempotente).
-- [x] **NOM-11 — Auto-fix `go.diagnostic.vulncheck`**: all'attivazione corregge il default rotto `"Prompt"` (rifiutato da gopls) a un valore valido; settings `nomadLens.autoFixGoVulncheck` / `nomadLens.goVulncheckFixValue`. Logica pura in `core/vulncheck.ts`, testata.
-- [x] **NOM-12 — Hardening da audit**: `desired` autorevole dal `Count` dei task group (jobHealth più accurato sui job sotto-scala), timeout richieste (8s), avviso token ACL in chiaro su `http://`, CI least-privilege.
-- [x] **NOM-13 — Guida + sito**: `docs/GUIDE.md` e landing GitHub Pages (`site/`, tema dark) con deploy automatico via `pages.yml`.
+- [x] **NOM-9 — Automatic publish on tag**: `publish` job in `ci.yml` that on a `v*` tag runs `vsce publish` (Marketplace) + `ovsx publish` (Open VSX, optional), with a tag == `package.json` guard. Secret `VSCE_PAT` (and optionally `OVSX_PAT`).
+- [x] **NOM-10 — Backlog/milestone sync**: workflow `backlog-sync.yml` + `scripts/backlog-sync.mjs` that makes GitHub milestones and issues a mirror of `BACKLOG.md` (`NOM-n` ids anchored via markers, idempotent).
+- [x] **NOM-11 — `go.diagnostic.vulncheck` auto-fix**: on activation it corrects the broken `"Prompt"` default (rejected by gopls) to a valid value; settings `nomadLens.autoFixGoVulncheck` / `nomadLens.goVulncheckFixValue`. Pure logic in `core/vulncheck.ts`, tested.
+- [x] **NOM-12 — Hardening from the audit**: authoritative `desired` from the task groups' `Count` (more accurate `jobHealth` on under-scaled jobs), request timeouts (8s), warning for cleartext ACL tokens over `http://`, least-privilege CI.
+- [x] **NOM-13 — Guide + website**: `docs/GUIDE.md` and a GitHub Pages landing page (`site/`, dark theme) with automatic deploy via `pages.yml`.
 
 ## v0.3 — Daily driver
 
-- [x] **NOM-1 — Restart storm / OOM detector**: le allocation con restart loop (≥3) o kill da OOM sono evidenziate nel tree (icona ⚠ + descrizione), dedotto dagli eventi task già presenti nella lista allocation (nessuna richiesta extra). Logica pura `taskEventIsOom`/`allocWarnings`, testata.
-- [x] **NOM-2 — Deployment watch**: poller dei deployment attivi → progress (healthy/desired, canary) in status bar + notifica su successo/fallimento e su blocco (healthy fermo oltre soglia). Aggregazione/stato puri in `core/deploy.ts` (testati). Settings `deploymentWatch`/`deploymentPollSeconds`/`deploymentStallSeconds`.
-- [x] **NOM-3 — Azioni con conferma**: restart allocation, stop/start job dal menu contestuale del tree. Distruttive → doppia conferma modale; stop job → conferma digitando l'id; mai un bottone di default. Metadati puri in `core/actions.ts` (testati); stopJob verificato in integrazione.
-- [x] **NOM-4 — Grep cross-alloc**: comando "Grep Logs Across Allocations" sul job → cerca una stringa nei log (stdout+stderr) di tutte le allocation in parallelo (pool a 8), report markdown raggruppato per alloc con posizione `task/type:riga`. Logica pura `grepLogs`/`renderGrepReport` in `core/grep.ts` (testata).
+- [x] **NOM-1 — Restart storm / OOM detector**: allocations in a restart loop (≥3) or killed by OOM are highlighted in the tree (⚠ icon + description), derived from the task events already present in the allocation list (no extra request). Pure logic `taskEventIsOom`/`allocWarnings`, tested.
+- [x] **NOM-2 — Deployment watch**: poller over active deployments → progress (healthy/desired, canary) in the status bar + notification on success/failure and on stall (healthy count stuck beyond the threshold). Pure aggregation/state in `core/deploy.ts` (tested). Settings `deploymentWatch`/`deploymentPollSeconds`/`deploymentStallSeconds`.
+- [x] **NOM-3 — Actions with confirmation**: restart allocation, stop/start job from the tree context menu. Destructive ones → double modal confirmation; stop job → confirmation by typing the id; never a default button. Pure metadata in `core/actions.ts` (tested); stopJob verified in the integration tests.
+- [x] **NOM-4 — Cross-alloc grep**: "Grep Logs Across Allocations" command on a job → searches a string in the logs (stdout+stderr) of all allocations in parallel (pool of 8), markdown report grouped by allocation with `task/type:line` positions. Pure logic `grepLogs`/`renderGrepReport` in `core/grep.ts` (tested).
 
 ## v0.4 — Drift
 
-- [x] **NOM-5 — Compare clusters**: comando "Compare Job Across Clusters" → stesso job su due cluster, tabella diff di count/image/cpu/memory/env con marcatore ≠. Estrazione/confronto puri in `core/drift.ts` (testati).
-- [x] **NOM-6 — Image inventory**: comando "Image Inventory (all clusters)" → matrice job × cluster con l'immagine docker per cella e marcatore `≠` sui job con drift di immagine. Rendering puro `renderImageInventory` in `core/drift.ts` (testato).
-- [x] **NOM-7 — Snapshot schedulabile**: comando "Save Cluster Snapshot to File" che scrive lo snapshot in `nomadLens.snapshotPath` (cartella → `nomad-snapshot-<cluster>-<data>.md`, oppure file `.md` esatto; supporta `~`). Nome file puro `snapshotFileName` (testato). Bindabile a un task/scheduler esterno per il report mattutino.
+- [x] **NOM-5 — Compare clusters**: "Compare Job Across Clusters" command → the same job on two clusters, diff table of count/image/cpu/memory/env with a ≠ marker. Pure extraction/comparison in `core/drift.ts` (tested).
+- [x] **NOM-6 — Image inventory**: "Image Inventory (all clusters)" command → job × cluster matrix with the docker image per cell and a `≠` marker on jobs with image drift. Pure rendering `renderImageInventory` in `core/drift.ts` (tested).
+- [x] **NOM-7 — Schedulable snapshot**: "Save Cluster Snapshot to File" command that writes the snapshot to `nomadLens.snapshotPath` (a folder → `nomad-snapshot-<cluster>-<date>.md`, or an exact `.md` file; supports `~`). Pure file name `snapshotFileName` (tested). Bindable to an external task/scheduler for the morning report.
 
-## Rilascio
+## Release
 
-- [ ] **NOM-8 — Screenshot/GIF nel README**: ultimo asset per la pagina Marketplace (icona PNG e publisher `allannava95` già fatti).
+- [ ] **NOM-8 — Screenshots/GIF in the README**: the last asset for the Marketplace page (PNG icon and `allannava95` publisher already done).

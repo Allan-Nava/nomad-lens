@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.4
+
+### Changed
+
+- All documentation translated to English, applying the 0.9.3 rule to the existing corpus: `CLAUDE.md`, `AGENTS.md`, `README.md`, `BACKLOG.md`, `docs/GUIDE.md`, the GitHub Pages landing page (`site/index.html`, now `lang="en"`) and every changelog entry below. This supersedes 0.9.3's note that earlier entries would be left as they were.
+- Fixed a stale claim spotted while translating: the guide (§10) and the landing page described the extension as read-only, which stopped being true in 0.4.0 when the mutating actions (restart allocation, stop/start job) shipped. Both now state that mutating actions exist and are always behind an explicit confirmation.
+- Code (comments, user-facing strings, test names) is still in Italian and is not covered by this release.
+
 ## 0.9.3
 
 ### Changed
@@ -8,174 +16,174 @@
 
 ## 0.9.2
 
-Hardening dei test sul glue finora scoperto.
+Hardening of the tests over the glue that was uncovered so far.
 
-### Aggiunto
+### Added
 
-- Test di integrazione per le azioni mutative `restartAllocation` e `startJob`: il dev agent dei test ora abilita `raw_exec` (con `cores`, robusto anche in VM con `CpuShares=0`), così si verificano su un'allocazione realmente *running* — non più solo `stopJob`. Verificato su host e in container.
-- Logica del deployment watch estratta in funzioni pure e testate: `deployNotification` (notifica solo sui cambi verso stati terminali) e `isDeployStalled` (running oltre soglia). Il poller nel glue ora le usa.
+- Integration tests for the mutating actions `restartAllocation` and `startJob`: the tests' dev agent now enables `raw_exec` (with `cores`, robust even in VMs where `CpuShares=0`), so they are verified against a genuinely *running* allocation — no longer just `stopJob`. Verified on the host and in a container.
+- Deployment watch logic extracted into pure, tested functions: `deployNotification` (notifies only on transitions to terminal states) and `isDeployStalled` (running beyond the threshold). The poller in the glue now uses them.
 
 ## 0.9.1
 
-### Aggiunto
+### Added
 
-- Ambiente Docker per test e demo: `Dockerfile.test` + `docker-compose.yml`. `docker compose run --rm tests` esegue l'intera suite (unit + **integrazione**) in container con Nomad 1.9.5 pinnato — verificato **23/23 verdi**, integrazione inclusa (i servizi girano `privileged` con cgroup writable, necessario al client Nomad). Profilo `demo` (`docker compose --profile demo up`): Nomad dev su `:4646` + job di esempio (raw_exec, due allocation che loggano, con righe `error` per il grep) da puntare con l'estensione. Esclusi dal `.vsix`.
+- Docker environment for tests and demos: `Dockerfile.test` + `docker-compose.yml`. `docker compose run --rm tests` runs the whole suite (unit + **integration**) in a container with Nomad 1.9.5 pinned — verified **23/23 green**, integration included (the services run `privileged` with a writable cgroup, which the Nomad client needs). `demo` profile (`docker compose --profile demo up`): dev Nomad on `:4646` + a sample job (raw_exec, two allocations that log, including `error` lines for the grep) to point the extension at. Excluded from the `.vsix`.
 
 ## 0.9.0
 
-Completa la milestone v0.4 — Drift.
+Completes the v0.4 — Drift milestone.
 
-### Aggiunto
+### Added
 
-- **Snapshot su file** (NOM-7): comando *Save Cluster Snapshot to File* — scrive lo snapshot markdown in `nomadLens.snapshotPath` (cartella → `nomad-snapshot-<cluster>-<data>.md`, oppure file `.md` esatto; supporta `~`, crea le cartelle mancanti). Pensato per essere bindato a un task/scheduler esterno per il report mattutino. Nome file puro `snapshotFileName` in `core/report.ts`, testato.
+- **Snapshot to file** (NOM-7): *Save Cluster Snapshot to File* command — writes the markdown snapshot to `nomadLens.snapshotPath` (a folder → `nomad-snapshot-<cluster>-<date>.md`, or an exact `.md` file; supports `~`, creates missing folders). Meant to be bound to an external task/scheduler for the morning report. Pure file name `snapshotFileName` in `core/report.ts`, tested.
 
 ## 0.8.0
 
-### Aggiunto
+### Added
 
-- **Image inventory** (NOM-6): comando *Image Inventory (all clusters)* — matrice job × cluster con l'immagine docker per cella, e marcatore `≠` sui job con drift di immagine tra i cluster dove esistono. Fetch a concorrenza limitata; rendering puro `renderImageInventory` in `core/drift.ts`, testato.
+- **Image inventory** (NOM-6): *Image Inventory (all clusters)* command — job × cluster matrix with the docker image per cell, and a `≠` marker on jobs with image drift across the clusters where they exist. Fetching with limited concurrency; pure rendering `renderImageInventory` in `core/drift.ts`, tested.
 
 ## 0.7.0
 
-### Aggiunto
+### Added
 
-- **Compare job across clusters** (NOM-5): dal menu del job, confronta lo stesso job su due cluster (scelti dai configurati) → tabella diff di `count`, `image`, `cpu`, `memory` ed `env`, con marcatore `≠` sulle differenze. API `job(id)`; logica pura `summarizeJob`/`compareJobSpecs`/`renderComparison` in `core/drift.ts`, testata.
+- **Compare job across clusters** (NOM-5): from the job menu, compare the same job on two clusters (picked from the configured ones) → diff table of `count`, `image`, `cpu`, `memory` and `env`, with a `≠` marker on the differences. `job(id)` API; pure logic `summarizeJob`/`compareJobSpecs`/`renderComparison` in `core/drift.ts`, tested.
 
 ## 0.6.0
 
-Completa la milestone v0.3 — Daily driver.
+Completes the v0.3 — Daily driver milestone.
 
-### Aggiunto
+### Added
 
-- **Grep cross-allocation** (NOM-4): comando *Grep Logs Across Allocations* sul job — cerca una stringa (case-insensitive) nei log `stdout`+`stderr` di tutte le allocation in parallelo (pool a concorrenza 8), e apre un report markdown raggruppato per allocazione con posizione `task/type:riga`. Logica pura `grepLogs`/`renderGrepReport` in `core/grep.ts`, testata.
+- **Cross-allocation grep** (NOM-4): *Grep Logs Across Allocations* command on a job — searches a string (case-insensitive) in the `stdout`+`stderr` logs of all allocations in parallel (pool with concurrency 8), and opens a markdown report grouped by allocation with `task/type:line` positions. Pure logic `grepLogs`/`renderGrepReport` in `core/grep.ts`, tested.
 
 ## 0.5.0
 
-### Aggiunto
+### Added
 
-- **Deployment watch** (NOM-2): un poller osserva i deployment attivi e mostra il progresso (`healthy/desired`, canary) in una voce dedicata della status bar, con icona di stato. Notifiche su **successo**, **fallimento/annullamento** e su **blocco** (allocazioni healthy ferme oltre `deploymentStallSeconds`). Aggregazione task group e derivazione dello stato pure e testate in `core/deploy.ts`; `deployments()` ora espone `desired/placed/healthy/unhealthy/canaries`. Settings: `nomadLens.deploymentWatch`, `nomadLens.deploymentPollSeconds`, `nomadLens.deploymentStallSeconds`.
+- **Deployment watch** (NOM-2): a poller watches active deployments and shows progress (`healthy/desired`, canary) in a dedicated status bar item, with a state icon. Notifications on **success**, **failure/cancellation** and on **stall** (healthy allocations stuck beyond `deploymentStallSeconds`). Task group aggregation and state derivation are pure and tested in `core/deploy.ts`; `deployments()` now exposes `desired/placed/healthy/unhealthy/canaries`. Settings: `nomadLens.deploymentWatch`, `nomadLens.deploymentPollSeconds`, `nomadLens.deploymentStallSeconds`.
 
 ## 0.4.0
 
-### Aggiunto
+### Added
 
-- **Azioni con conferma** (NOM-3): dal menu contestuale del tree — **Restart Allocation**, **Stop Job**, **Start Job**. Le azioni distruttive richiedono doppia conferma modale; lo stop job richiede di **digitare l'id** del job; nessun pulsante di default (regola CLAUDE.md sui comandi mutativi). API `restartAllocation`/`stopJob`/`startJob`; metadati/conferme puri in `core/actions.ts` (testati); `stopJob` verificato in integrazione contro `nomad agent -dev`.
+- **Actions with confirmation** (NOM-3): from the tree context menu — **Restart Allocation**, **Stop Job**, **Start Job**. Destructive actions require a double modal confirmation; stopping a job requires **typing the job id**; no default button (the CLAUDE.md rule on mutating commands). `restartAllocation`/`stopJob`/`startJob` APIs; pure metadata/confirmations in `core/actions.ts` (tested); `stopJob` verified in the integration tests against `nomad agent -dev`.
 
 ## 0.3.1
 
-Hardening dall'audit del codice recente.
+Hardening from the audit of the recent code.
 
-### Corretto
+### Fixed
 
-- **`jobs()` non satura più l'API**: l'enrichment del `desired` (fetch `GET /v1/job/:id` per ogni job service, introdotto in 0.2.2) ora gira con concorrenza limitata (`JOB_FETCH_CONCURRENCY = 8`) invece che tutto in parallelo. Nuovo helper puro `mapPool`, testato (cap di concorrenza + ordine).
-- **Rilevamento OOM più stretto** (`taskEventIsOom`): non usa più `includes('oom')` nudo (matchava "zoom"/"room" → falsi positivi); ora richiede `out of memory` / `oom killed` / `oomkilled` o i `Details` espliciti.
+- **`jobs()` no longer saturates the API**: the `desired` enrichment (a `GET /v1/job/:id` fetch for every service job, introduced in 0.2.2) now runs with limited concurrency (`JOB_FETCH_CONCURRENCY = 8`) instead of all in parallel. New pure helper `mapPool`, tested (concurrency cap + ordering).
+- **Stricter OOM detection** (`taskEventIsOom`): no longer a bare `includes('oom')` (which matched "zoom"/"room" → false positives); it now requires `out of memory` / `oom killed` / `oomkilled` or the explicit `Details`.
 
 ## 0.3.0
 
-### Aggiunto
+### Added
 
-- **Restart storm / OOM detector** (NOM-1): nel tree, le allocation con restart loop (≥3 restart) o uccise per **OOM** sono evidenziate con icona ⚠, descrizione e tooltip. L'OOM è dedotto dagli eventi task già inclusi nella risposta `allocations` (nessuna richiesta extra). Logica pura e testata: `taskEventIsOom` (`core/api.ts`) e `allocWarnings` (`core/report.ts`); `AllocSummary` ora espone `oom`.
+- **Restart storm / OOM detector** (NOM-1): in the tree, allocations in a restart loop (≥3 restarts) or killed by **OOM** are highlighted with a ⚠ icon, a description and a tooltip. OOM is derived from the task events already included in the `allocations` response (no extra request). Pure and tested logic: `taskEventIsOom` (`core/api.ts`) and `allocWarnings` (`core/report.ts`); `AllocSummary` now exposes `oom`.
 
 ## 0.2.5
 
-### Modificato
+### Changed
 
-- Backlog e milestone riorganizzati: nuova milestone **v0.2 — Rilasciato** con le feature spedite nella serie 0.2.x (publish automatico, backlog sync, auto-fix vulncheck `NOM-11`, hardening da audit `NOM-12`, guida + sito `NOM-13`). Le milestone pianificate rinominate coerentemente con le versioni reali (`v0.3 — Daily driver`, `v0.4 — Drift`); `NOM-8` ridotto ai soli screenshot. Milestone/issue GitHub allineate.
+- Backlog and milestones reorganized: a new **v0.2 — Released** milestone with the features shipped in the 0.2.x series (automatic publish, backlog sync, vulncheck auto-fix `NOM-11`, hardening from the audit `NOM-12`, guide + website `NOM-13`). The planned milestones renamed consistently with the real versions (`v0.3 — Daily driver`, `v0.4 — Drift`); `NOM-8` reduced to the screenshots only. GitHub milestones/issues realigned.
 
 ## 0.2.4
 
-### Modificato
+### Changed
 
-- Restyling della landing GitHub Pages (`site/index.html`): tema dark con accento neon-green, sfondo aurora + dot-grid, titolo con gradiente animato, logo con glow, mock "terminale" con snapshot/plan di esempio, card glass con bordo luminoso all'hover. Sempre self-contained e zero dipendenze; animazioni disattivate con `prefers-reduced-motion`.
+- Restyled the GitHub Pages landing page (`site/index.html`): dark theme with a neon-green accent, aurora + dot-grid background, animated gradient title, glowing logo, "terminal" mock with a sample snapshot/plan, glass cards with a luminous border on hover. Still self-contained and dependency-free; animations disabled with `prefers-reduced-motion`.
 
 ## 0.2.3
 
-### Aggiunto
+### Added
 
-- GitHub Pages: landing page self-contained in `site/index.html` (hero col logo, features, install, link alla guida; tema chiaro/scuro, zero dipendenze) + workflow `pages.yml` che pubblica su push a `main` e auto-abilita Pages (`configure-pages` con `enablement: true`). URL: https://allan-nava.github.io/nomad-lens/. Esclusa dal `.vsix`.
+- GitHub Pages: self-contained landing page in `site/index.html` (hero with the logo, features, install, link to the guide; light/dark theme, zero dependencies) + `pages.yml` workflow that publishes on push to `main` and auto-enables Pages (`configure-pages` with `enablement: true`). URL: https://allan-nava.github.io/nomad-lens/. Excluded from the `.vsix`.
 
 ## 0.2.2
 
-Hardening dall'audit interno.
+Hardening from the internal audit.
 
-### Corretto
+### Fixed
 
-- **`desired` autorevole** (`jobHealth` core): il conteggio desiderato dei job service ora viene dal `Count` reale dei task group (`GET /v1/job/:id`), non più approssimato con `Running+Queued+Starting` dal summary. Prima un job running ma sotto-scala senza alloc in coda risultava "healthy"; ora è correttamente **degraded**. Fetch in parallelo, con fallback al summary se fallisce.
-- **Timeout sulle richieste**: `getJson`/`postJson`/`logsTail` abortiscono dopo `REQUEST_TIMEOUT_MS` (8s) — un cluster irraggiungibile non lascia più l'albero appeso.
-- **Corpi d'errore troncati** (500 char) nei messaggi, per non riversare output grezzo del cluster nelle notifiche.
-- **CI least-privilege**: `permissions` di default a `contents: read`; solo il job `package` (che crea la release) ottiene `contents: write`.
+- **Authoritative `desired`** (`jobHealth` core): the desired count of service jobs now comes from the task groups' real `Count` (`GET /v1/job/:id`), instead of being approximated with `Running+Queued+Starting` from the summary. Before, a running but under-scaled job with no queued allocations looked "healthy"; now it is correctly **degraded**. Fetched in parallel, with a fallback to the summary if it fails.
+- **Request timeouts**: `getJson`/`postJson`/`logsTail` abort after `REQUEST_TIMEOUT_MS` (8s) — an unreachable cluster no longer leaves the tree hanging.
+- **Truncated error bodies** (500 chars) in messages, so raw cluster output is not spilled into notifications.
+- **Least-privilege CI**: default `permissions` set to `contents: read`; only the `package` job (which creates the release) gets `contents: write`.
 
-### Aggiunto
+### Added
 
-- **Avviso token in chiaro**: se un cluster usa un token ACL su `http://` verso un host non locale, l'estensione avvisa (una volta per cluster). Logica pura `tokenSentInClear` in `core/api.ts`.
+- **Cleartext token warning**: if a cluster uses an ACL token over `http://` towards a non-local host, the extension warns (once per cluster). Pure logic `tokenSentInClear` in `core/api.ts`.
 
 ## 0.2.1
 
-### Aggiunto
+### Added
 
-- Guida d'uso completa in `docs/GUIDE.md` (installazione, config cluster/token, explorer, plan diff, log, incident bundle, snapshot, auto-fix vulncheck, troubleshooting, sicurezza), linkata dal README. Esclusa dal `.vsix`.
+- Full user guide in `docs/GUIDE.md` (installation, cluster/token config, explorer, plan diff, logs, incident bundle, snapshot, vulncheck auto-fix, troubleshooting, security), linked from the README. Excluded from the `.vsix`.
 
 ## 0.2.0
 
-### Aggiunto
+### Added
 
-- Auto-fix di `go.diagnostic.vulncheck`: all'attivazione (`onStartupFinished`), se la Go extension è installata e il valore effettivo è il default rotto `"Prompt"` (che gopls rifiuta con `Invalid settings: ... invalid option "Prompt"`), Nomad Lens lo corregge a un valore valido. Trasparente (notifica con "Annulla") e reversibile. Corregge nello scope giusto (globale per il default implicito, workspace se l'override è lì).
-  - Nuove settings: `nomadLens.autoFixGoVulncheck` (bool, default `true`) e `nomadLens.goVulncheckFixValue` (`"Off"` | `"Imports"`, default `"Off"`).
-  - Logica di decisione pura e testata in `src/core/vulncheck.ts` (nessun import `vscode`); glue I/O in `extension.ts`.
+- `go.diagnostic.vulncheck` auto-fix: on activation (`onStartupFinished`), if the Go extension is installed and the effective value is the broken `"Prompt"` default (which gopls rejects with `Invalid settings: ... invalid option "Prompt"`), Nomad Lens corrects it to a valid value. Transparent (notification with "Undo") and reversible. It fixes in the right scope (global for the implicit default, workspace if the override lives there).
+  - New settings: `nomadLens.autoFixGoVulncheck` (bool, default `true`) and `nomadLens.goVulncheckFixValue` (`"Off"` | `"Imports"`, default `"Off"`).
+  - Pure and tested decision logic in `src/core/vulncheck.ts` (no `vscode` import); I/O glue in `extension.ts`.
 
 ## 0.1.7
 
-### Corretto
+### Fixed
 
-- `publisher` in `package.json` corretto in `allannava95` (era il placeholder `allan-nava`, che non combaciava con il publisher reale sul Marketplace). Sblocca il publish automatico: l'extension id diventa `allannava95.nomad-lens`. Il `VSCE_PAT` in CI deve appartenere a questo publisher.
+- `publisher` in `package.json` corrected to `allannava95` (it was the `allan-nava` placeholder, which did not match the real publisher on the Marketplace). Unblocks the automatic publish: the extension id becomes `allannava95.nomad-lens`. The `VSCE_PAT` in CI must belong to this publisher.
 
 ## 0.1.6
 
-### Modificato
+### Changed
 
-- `typescript` aggiornato a `^7.0.2` (compilatore nativo, dependabot #16). Solo toolchain di typecheck: il bundle resta esbuild. Verificato con `npm ci` pulito che il lockfile porta tutti i binari nativi per-piattaforma (incluso `@typescript/typescript-linux-x64` per la CI) e che `tsc --noEmit` + test + build passano. Il fallimento della PR era dovuto solo alla base pre-fix `types` (0.1.3), non al bump.
+- `typescript` bumped to `^7.0.2` (native compiler, dependabot #16). Typecheck toolchain only: the bundle stays esbuild. Verified with a clean `npm ci` that the lockfile brings all the per-platform native binaries (including `@typescript/typescript-linux-x64` for CI) and that `tsc --noEmit` + tests + build pass. The PR failure was due only to the pre-fix `types` base (0.1.3), not to the bump.
 
 ## 0.1.5
 
-### Aggiunto
+### Added
 
-- Test di regressione (TDD) `hcl fixture: nessun blocco single-line multi-argomento`: linta la spec HCL di riferimento e blocca a monte la sintassi che HCL2 rifiuta. Gira **sempre**, anche senza il binario `nomad` (a differenza dei test di integrazione), cosi' il bug corretto in 0.1.4 non puo' piu' sfuggire in locale. Fixture HCL spostata a livello di modulo.
+- Regression test (TDD) `hcl fixture: no single-line block with multiple arguments`: it lints the reference HCL spec and blocks upfront the syntax that HCL2 rejects. It runs **always**, even without the `nomad` binary (unlike the integration tests), so the bug fixed in 0.1.4 can no longer slip through locally. HCL fixture moved to module level.
 
 ## 0.1.4
 
-### Corretto
+### Fixed
 
-- Test di integrazione rossi in CI (Nomad 1.9.5): la fixture HCL usava un blocco single-line con due argomenti (`resources { cpu = 100, memory = 64 }`), sintassi rifiutata da HCL2. Riscritti `config` e `resources` come blocchi multi-line. Non emergeva in locale perche' l'integrazione si salta senza il binario `nomad`.
+- Red integration tests in CI (Nomad 1.9.5): the HCL fixture used a single-line block with two arguments (`resources { cpu = 100, memory = 64 }`), syntax rejected by HCL2. `config` and `resources` rewritten as multi-line blocks. It did not surface locally because the integration tests are skipped without the `nomad` binary.
 
 ## 0.1.3
 
-### Corretto
+### Fixed
 
-- Build CI (`npx tsc --noEmit`) rossa per type globali Node/undici non risolti (`process`, `fetch`, `URL`, `AbortController`, `TextDecoder`, `Buffer`, `console`, `setTimeout`): dipendeva dall'auto-discovery dei pacchetti `@types`, non deterministica nel runner. `tsconfig.json` ora dichiara esplicitamente `"types": ["node", "vscode"]`.
+- Red CI build (`npx tsc --noEmit`) due to unresolved Node/undici global types (`process`, `fetch`, `URL`, `AbortController`, `TextDecoder`, `Buffer`, `console`, `setTimeout`): it depended on `@types` package auto-discovery, which is not deterministic in the runner. `tsconfig.json` now declares `"types": ["node", "vscode"]` explicitly.
 
 ## 0.1.2
 
-### Aggiunto
+### Added
 
-- Logo dell'estensione (`media/logo.png`, 512px): lente d'ingrandimento che incornicia l'esagono Nomad, verde brand su squircle scuro. Impostato come `icon` in `package.json` per il Marketplace. Sorgente in `media/logo.svg`.
+- Extension logo (`media/logo.png`, 512px): a magnifying glass framing the Nomad hexagon, brand green on a dark squircle. Set as `icon` in `package.json` for the Marketplace. Source in `media/logo.svg`.
 
-### Modificato
+### Changed
 
-- `.vscodeignore` ripulito: il `.vsix` non spedisce piu' file interni (`CLAUDE.md`, `AGENTS.md`, `BACKLOG.md`, `.claude/`, `scripts/`, source map, `package-lock.json`). Ora contiene solo runtime + asset Marketplace.
+- `.vscodeignore` cleaned up: the `.vsix` no longer ships internal files (`CLAUDE.md`, `AGENTS.md`, `BACKLOG.md`, `.claude/`, `scripts/`, source maps, `package-lock.json`). It now contains only runtime + Marketplace assets.
 
 ## 0.1.1
 
-### Aggiunto
+### Added
 
-- Publish automatico sugli store su tag `v*`: nuovo job `publish` in `ci.yml` che esegue `vsce publish` (VS Code Marketplace) e, se configurato il secret `OVSX_PAT`, `ovsx publish` (Open VSX). Secret richiesto: `VSCE_PAT`. Environment `marketplace` per un eventuale gate di approvazione manuale.
-- Guard di release nel job `package`: la pipeline aborta se il tag non combacia con `version` di `package.json`.
-- Sync automatico del backlog: workflow `backlog-sync.yml` + `scripts/backlog-sync.mjs` (zero dipendenze, fetch nativo) che rende milestone e issue GitHub un mirror di `BACKLOG.md`. Ogni heading `##` → milestone, ogni voce `NOM-n` → issue ancorata via marker `<!-- backlog:NOM-n -->`; voci spuntate chiudono la issue, sezioni interamente spuntate chiudono la milestone. Idempotente, con dry-run da `workflow_dispatch`.
+- Automatic publish to the stores on a `v*` tag: new `publish` job in `ci.yml` that runs `vsce publish` (VS Code Marketplace) and, if the `OVSX_PAT` secret is configured, `ovsx publish` (Open VSX). Required secret: `VSCE_PAT`. `marketplace` environment for an optional manual approval gate.
+- Release guard in the `package` job: the pipeline aborts if the tag does not match `version` in `package.json`.
+- Automatic backlog sync: workflow `backlog-sync.yml` + `scripts/backlog-sync.mjs` (zero dependencies, native fetch) that makes GitHub milestones and issues a mirror of `BACKLOG.md`. Every `##` heading → a milestone, every `NOM-n` item → an issue anchored via a `<!-- backlog:NOM-n -->` marker; checked items close their issue, fully-checked sections close their milestone. Idempotent, with a dry-run from `workflow_dispatch`.
 
 ## 0.1.0
 
-- Cluster explorer: job con health reale (running incompleto = degraded), allocation con restart count, task, nodi, deployment.
-- Plan diff repo-vs-running: parse HCL server-side + plan con diff renderizzato accanto all'editor.
-- Log follow in streaming (stdout/stderr) in Output channel dedicati.
-- Incident bundle: `incidents/<data>-<job>-<alloc>/` con report.md (timeline eventi) + log allegati.
-- Cluster snapshot report in markdown (problemi in cima, tabella completa).
-- Multi-cluster da settings; token ACL solo da env var, mai visualizzati.
+- Cluster explorer: jobs with real health (incomplete running = degraded), allocations with restart counts, tasks, nodes, deployments.
+- Plan diff repo-vs-running: server-side HCL parse + plan with the diff rendered beside the editor.
+- Streaming log follow (stdout/stderr) in dedicated Output channels.
+- Incident bundle: `incidents/<date>-<job>-<alloc>/` with report.md (event timeline) + attached logs.
+- Cluster snapshot report in markdown (problems on top, full table).
+- Multi-cluster from settings; ACL tokens only from env vars, never displayed.

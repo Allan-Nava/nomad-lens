@@ -1,19 +1,19 @@
-# Nomad Lens — Guida d'uso
+# Nomad Lens — User guide
 
-Operazioni HashiCorp Nomad dentro VS Code: esplori cluster/job/allocation/task, segui i log in streaming, fai il **diff tra lo spec nel repo e il job running** prima di deployare, esporti un incident bundle con un click e generi uno snapshot del cluster. Zero dipendenze runtime: parla con l'API HTTP di Nomad via `fetch` nativo.
+HashiCorp Nomad operations inside VS Code: browse clusters/jobs/allocations/tasks, follow logs as a stream, **diff the spec in your repo against the running job** before deploying, export an incident bundle in one click and generate a cluster snapshot. Zero runtime dependencies: it talks to the Nomad HTTP API through native `fetch`.
 
 ---
 
-## 1. Installazione
+## 1. Installation
 
-- **Marketplace**: cerca "Nomad Lens" (publisher `allannava95`) e installa.
-- **Da `.vsix`**: `code --install-extension nomad-lens-<versione>.vsix`, oppure dalla vista Extensions → `…` → *Install from VSIX*.
+- **Marketplace**: search for "Nomad Lens" (publisher `allannava95`) and install.
+- **From a `.vsix`**: `code --install-extension nomad-lens-<version>.vsix`, or from the Extensions view → `…` → *Install from VSIX*.
 
-Dopo l'installazione compare l'icona **Nomad** nella Activity Bar (barra laterale).
+After installing, the **Nomad** icon appears in the Activity Bar (side bar).
 
-## 2. Configurare i cluster
+## 2. Configuring clusters
 
-Le impostazioni vivono in `settings.json` (utente o workspace), sotto `nomadLens.clusters`:
+Settings live in `settings.json` (user or workspace), under `nomadLens.clusters`:
 
 ```jsonc
 "nomadLens.clusters": [
@@ -22,133 +22,133 @@ Le impostazioni vivono in `settings.json` (utente o workspace), sotto `nomadLens
     "name": "prod",
     "address": "https://nomad.example:4646",
     "namespace": "default",
-    "tokenEnv": "NOMAD_TOKEN_PROD"   // NOME della env var, non il token
+    "tokenEnv": "NOMAD_TOKEN_PROD"   // the NAME of the env var, not the token
   }
 ]
 ```
 
-| Campo       | Obbligatorio | Note |
+| Field       | Required | Notes |
 |-------------|:---:|------|
-| `name`      | ✔ | Etichetta mostrata nella status bar e nel picker. |
+| `name`      | ✔ | Label shown in the status bar and in the picker. |
 | `address`   | ✔ | `http(s)://host:4646`. |
-| `namespace` |   | Namespace Nomad; aggiunto come query param a ogni chiamata. |
-| `tokenEnv`  |   | **Nome** della variabile d'ambiente che contiene il token ACL. |
+| `namespace` |   | Nomad namespace; appended as a query param to every call. |
+| `tokenEnv`  |   | **Name** of the environment variable holding the ACL token. |
 
-### Token ACL — regola di sicurezza
-Il token **non si mette mai** nelle settings. In `tokenEnv` indichi il *nome* di una env var; l'estensione legge il token da lì a runtime e lo invia come header `X-Nomad-Token`. Il token non viene mai salvato né mostrato.
+### ACL tokens — security rule
+The token is **never** put in the settings. In `tokenEnv` you name an env var; the extension reads the token from it at runtime and sends it as the `X-Nomad-Token` header. The token is never stored nor displayed.
 
-Assicurati che VS Code veda quella env var (esportala nel profilo shell da cui lanci `code`, o usa un `.env`/launcher del tuo setup). Esempio:
+Make sure VS Code can see that env var (export it in the shell profile you launch `code` from, or use the `.env`/launcher of your setup). For example:
 
 ```bash
-export NOMAD_TOKEN_PROD="…"   # nel tuo ~/.zshrc, letto prima di avviare VS Code
+export NOMAD_TOKEN_PROD="…"   # in your ~/.zshrc, read before starting VS Code
 ```
 
-## 3. L'explorer del cluster
+## 3. The cluster explorer
 
-Apri il pannello **Nomad**. Vedrai tre sezioni:
+Open the **Nomad** panel. You will see three sections:
 
-- **Jobs** — ogni job con la sua **health reale**. Attenzione: un job `running` con allocazioni mancanti o fallite viene marcato **degraded** (🟠), non "running". Espandendo un job vedi le sue allocation (escluse le `complete`), e dentro ciascuna i task.
-- **Nodes** — nodi con stato `ready`/altro e flag `drain`.
-- **Deployments** — deployment attivi/recenti con stato e descrizione.
+- **Jobs** — every job with its **real health**. Note: a `running` job with missing or failed allocations is marked **degraded** (🟠), not "running". Expanding a job shows its allocations (excluding `complete` ones), and inside each one its tasks.
+- **Nodes** — nodes with their `ready`/other status and the `drain` flag.
+- **Deployments** — active/recent deployments with status and description.
 
-Comandi utili dalla vista:
-- **Refresh** (icona ↻ nel titolo) — ricarica.
-- **Select Cluster** — cambia cluster attivo (anche dalla status bar in basso, `$(rocket) nomad: <cluster>`). Cambiare cluster ferma tutti gli stream di log aperti.
+Handy commands from the view:
+- **Refresh** (the ↻ icon in the title) — reload.
+- **Select Cluster** — switch the active cluster (also from the status bar at the bottom, `$(rocket) nomad: <cluster>`). Switching cluster stops every open log stream.
 
 ## 4. Plan diff: repo vs running
 
-Il cuore del workflow "sai cosa cambi prima di deployare".
+The heart of the "know what you are changing before deploying" workflow.
 
-1. Apri un job spec `.nomad` o `.hcl`.
-2. Click destro nell'editor → **Nomad Lens: Plan Current Job File (diff vs running)** (o dal Command Palette).
-3. L'estensione manda lo spec a `POST /v1/jobs/parse` (HCL→JSON, `Canonicalize: true`), poi fa il **plan** contro il job running e apre il **diff a fianco** dell'editor.
+1. Open a `.nomad` or `.hcl` job spec.
+2. Right-click in the editor → **Nomad Lens: Plan Current Job File (diff vs running)** (or use the Command Palette).
+3. The extension sends the spec to `POST /v1/jobs/parse` (HCL→JSON, `Canonicalize: true`), then **plans** it against the running job and opens the **diff beside** your editor.
 
-Legge così:
-- `~ campo: vecchio → nuovo` (modificato), `+` (aggiunto), `-` (rimosso), ricorsivo su TaskGroup → Task → Config.
-- `Nessuna differenza …` se lo spec coincide col running.
-- Evidenzia `⚠ Placement fallito per: …` e i `⚠ Warnings` del plan.
+How to read it:
+- `~ field: old → new` (modified), `+` (added), `-` (removed), recursively over TaskGroup → Task → Config.
+- `No differences …` if the spec matches what is running.
+- It highlights `⚠ Placement failed for: …` and the plan's `⚠ Warnings`.
 
-Se il diff contiene più di quanto ti aspettavi, **lo scopri prima** di applicare.
+If the diff contains more than you expected, **you find out before** applying.
 
-## 5. Log in streaming
+## 5. Streaming logs
 
-- Espandi job → alloc → task e clicca il task (o click destro → **Follow Task Logs**).
-- Scegli `stdout` o `stderr`: si apre un Output channel dedicato che **streamma** (non fa polling), con più stream affiancabili.
-- **Stop Following Logs** dal Command Palette per fermare uno stream. Gli stream si chiudono anche al cambio cluster e alla disattivazione (nessuna connessione appesa).
+- Expand job → alloc → task and click the task (or right-click → **Follow Task Logs**).
+- Pick `stdout` or `stderr`: a dedicated Output channel opens and **streams** (it does not poll), and multiple streams can sit side by side.
+- **Stop Following Logs** from the Command Palette stops a stream. Streams are also closed on cluster switch and on deactivation (no hanging connections).
 
-## 6. Incident bundle in un click
+## 6. Incident bundle in one click
 
-Su un'allocazione problematica (click destro → **Export Incident Bundle for Allocation**):
+On a problematic allocation (right-click → **Export Incident Bundle for Allocation**):
 
-- Crea `incidents/<data>-<job>-<alloc>/` nella tua cartella di lavoro con:
-  - `report.md` — metadati alloc/nodo/restart, **timeline degli eventi** dei task (timestamp in ISO), elenco dei log allegati, e una sezione *Analisi* da compilare (causa/impatto/remediation).
-  - `<task>.stdout.log` / `<task>.stderr.log` — la coda dei log di ogni task.
+- It creates `incidents/<date>-<job>-<alloc>/` in your working folder with:
+  - `report.md` — alloc/node/restart metadata, the tasks' **event timeline** (ISO timestamps), the list of attached logs, and an *Analysis* section to fill in (cause/impact/remediation).
+  - `<task>.stdout.log` / `<task>.stderr.log` — the tail of each task's logs.
 
-Il report si apre subito: il tuo incident è già mezzo scritto.
+The report opens right away: your incident write-up is already half done.
 
-> Serve una cartella aperta in VS Code (workspace folder): è lì che viene salvato il bundle.
+> Requires a folder open in VS Code (a workspace folder): that is where the bundle is saved.
 
-## 6b. Azioni con conferma (mutative)
+## 6b. Actions with confirmation (mutating)
 
-Dal menu contestuale del tree, azioni che **modificano** il cluster — sempre dietro conferma esplicita, mai un default:
+From the tree context menu, actions that **change** the cluster — always behind an explicit confirmation, never a default:
 
-- **Restart Allocation** (su un'alloc) — riavvia i task dell'allocazione. Doppia conferma modale.
-- **Stop Job** (su un job) — deregistra il job. Conferma **digitando l'id del job** (la più forte).
-- **Start Job** (su un job) — rilegge lo spec del job, azzera `Stop` e ri-registra. Conferma singola.
+- **Restart Allocation** (on an alloc) — restarts the allocation's tasks. Double modal confirmation.
+- **Stop Job** (on a job) — deregisters the job. Confirmation by **typing the job id** (the strongest one).
+- **Start Job** (on a job) — re-reads the job spec, clears `Stop` and re-registers it. Single confirmation.
 
-Nessuna di queste ha un pulsante di default: `Invio` non le innesca.
+None of these has a default button: `Enter` does not trigger them.
 
 ## 6c. Deployment watch
 
-Con un deployment attivo, la status bar mostra il progresso in tempo reale — `$(sync~spin) deploy <job> healthy/desired · canary N` — e ricevi una notifica quando:
+While a deployment is active, the status bar shows live progress — `$(sync~spin) deploy <job> healthy/desired · canary N` — and you get a notification when:
 
-- il deploy **si completa** (✅) o **fallisce/viene annullato** (❌);
-- il deploy **si blocca** (allocazioni healthy ferme oltre `deploymentStallSeconds`).
+- the deployment **completes** (✅) or **fails/is cancelled** (❌);
+- the deployment **stalls** (healthy allocations stuck beyond `deploymentStallSeconds`).
 
 Settings: `nomadLens.deploymentWatch` (on/off, default on), `nomadLens.deploymentPollSeconds` (default 5), `nomadLens.deploymentStallSeconds` (default 90).
 
-## 6d. Grep cross-allocation
+## 6d. Cross-allocation grep
 
-Click destro su un job → **Grep Logs Across Allocations**: digita una stringa e Nomad Lens cerca (case-insensitive) nei log `stdout`+`stderr` di **tutte** le allocation del job, in parallelo. Il risultato è un report markdown raggruppato per allocazione, con posizione `task/type:riga` per ogni match. Utile per "chi ha loggato questo errore?" su un job con molte istanze.
+Right-click a job → **Grep Logs Across Allocations**: type a string and Nomad Lens searches (case-insensitive) the `stdout`+`stderr` logs of **all** the job's allocations, in parallel. The result is a markdown report grouped by allocation, with a `task/type:line` position for every match. Useful for "who logged this error?" on a job with many instances.
 
-## 6e. Compare job tra cluster (drift)
+## 6e. Compare a job across clusters (drift)
 
-Click destro su un job → **Compare Job Across Clusters**: scegli due cluster e Nomad Lens confronta lo stesso job, producendo una tabella diff di `count`, `image`, `cpu`, `memory` ed `env` (le righe diverse sono marcate `≠`). Utile per scovare il drift tra `dev` e `prod`.
+Right-click a job → **Compare Job Across Clusters**: pick two clusters and Nomad Lens compares the same job, producing a diff table of `count`, `image`, `cpu`, `memory` and `env` (differing rows are marked `≠`). Useful for spotting drift between `dev` and `prod`.
 
 ## 6f. Image inventory
 
-Dal titolo della vista Nomad → **Image Inventory (all clusters)**: Nomad Lens interroga tutti i cluster configurati e produce una matrice **job × cluster** con l'immagine docker per cella; i job con immagini diverse tra cluster sono marcati `≠`. Il colpo d'occhio su "chi ha il tag vecchio".
+From the Nomad view title → **Image Inventory (all clusters)**: Nomad Lens queries every configured cluster and produces a **job × cluster** matrix with the docker image per cell; jobs with different images across clusters are marked `≠`. The at-a-glance answer to "who is on the old tag".
 
-## 7. Snapshot del cluster
+## 7. Cluster snapshot
 
-**Nomad Lens: Cluster Snapshot Report** genera un markdown di salute:
-- riepilogo (job totali/problemi, nodi non-ready/drain, deployment non healthy);
-- **problemi in cima** (job degraded/pending/failed, nodi in drain, deploy bloccati);
-- tabella completa di tutti i job sotto.
+**Nomad Lens: Cluster Snapshot Report** generates a health markdown:
+- a summary (total jobs/problems, non-ready/drain nodes, non-healthy deployments);
+- **problems on top** (degraded/pending/failed jobs, draining nodes, stalled deployments);
+- the full table of all jobs below.
 
-Perfetto per il check del mattino o come baseline preflight prima di un intervento.
+Perfect for the morning check or as a preflight baseline before an intervention.
 
-**Salvarlo su file** — comando **Save Cluster Snapshot to File**: scrive lo snapshot in `nomadLens.snapshotPath`. Se il path è una cartella (o vuoto → cartella di lavoro) il file è `nomad-snapshot-<cluster>-<data>.md`; se termina in `.md` è il file esatto; supporta `~`. Così puoi bindare il comando a un task o a uno scheduler esterno per il report mattutino.
+**Saving it to a file** — the **Save Cluster Snapshot to File** command writes the snapshot to `nomadLens.snapshotPath`. If the path is a folder (or empty → the working folder) the file is `nomad-snapshot-<cluster>-<date>.md`; if it ends in `.md` it is the exact file; `~` is supported. This lets you bind the command to a task or an external scheduler for the morning report.
 
-## 8. Auto-fix di `go.diagnostic.vulncheck`
+## 8. `go.diagnostic.vulncheck` auto-fix
 
-Se usi anche la Go extension, il suo default `go.diagnostic.vulncheck: "Prompt"` viene rifiutato da `gopls` (`Invalid settings: … invalid option "Prompt"`). All'avvio Nomad Lens rileva il caso e imposta un valore valido, con notifica e possibilità di annullare.
+If you also use the Go extension, its `go.diagnostic.vulncheck: "Prompt"` default is rejected by `gopls` (`Invalid settings: … invalid option "Prompt"`). At startup Nomad Lens detects the case and sets a valid value, with a notification and the option to undo.
 
-- `nomadLens.autoFixGoVulncheck` (default `true`) — disattiva l'auto-fix.
-- `nomadLens.goVulncheckFixValue` (`"Off"` default | `"Imports"`) — valore da usare; `"Imports"` attiva la scansione vulnerabilità con govulncheck.
+- `nomadLens.autoFixGoVulncheck` (default `true`) — turns the auto-fix off.
+- `nomadLens.goVulncheckFixValue` (`"Off"` default | `"Imports"`) — the value to use; `"Imports"` enables vulnerability scanning with govulncheck.
 
 ## 9. Troubleshooting
 
-| Sintomo | Causa / rimedio |
+| Symptom | Cause / remedy |
 |---|---|
-| "Nessun cluster configurato" | Aggiungi `nomadLens.clusters` nelle settings. |
-| `errore: … HTTP 403` nel tree | Token ACL mancante o non valido: verifica che la env var in `tokenEnv` sia esportata **prima** di avviare VS Code. |
-| `HTTP 400 Failed to parse job` sul plan | Lo spec HCL non è valido per la versione di Nomad del cluster (es. blocco single-line con più argomenti). |
-| Il plan dice "Apri un job spec .nomad/.hcl" | Il file attivo non ha estensione `.nomad`/`.hcl`. |
-| Log non partono | L'allocazione non è più sul nodo, o il task non ha ancora prodotto output. |
+| "No cluster configured" | Add `nomadLens.clusters` to your settings. |
+| `error: … HTTP 403` in the tree | Missing or invalid ACL token: check that the env var named in `tokenEnv` is exported **before** starting VS Code. |
+| `HTTP 400 Failed to parse job` on plan | The HCL spec is not valid for the cluster's Nomad version (e.g. a single-line block with multiple arguments). |
+| Plan says "Open a .nomad/.hcl job spec" | The active file does not have a `.nomad`/`.hcl` extension. |
+| Logs do not start | The allocation is no longer on the node, or the task has not produced output yet. |
 
-## 10. Sicurezza in breve
+## 10. Security in short
 
-- Token ACL **solo** da env var (`tokenEnv`), mai in settings/log/output.
-- I comandi sono **read-only**: l'estensione non fa restart/stop/drain (le azioni mutative, quando arriveranno, richiederanno conferma esplicita).
-- Usa `https://` per i cluster remoti: su `http://` il token ACL viaggerebbe in chiaro.
+- ACL tokens **only** from env vars (`tokenEnv`), never in settings/logs/output.
+- Most commands are read-only. The mutating ones (restart allocation, stop/start job — see §6b) always require an explicit confirmation and never have a default button.
+- Use `https://` for remote clusters: over `http://` the ACL token would travel in cleartext.

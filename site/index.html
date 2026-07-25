@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Nomad Lens — HashiCorp Nomad ops dentro VS Code</title>
-  <meta name="description" content="Estensione VS Code per operazioni HashiCorp Nomad: explorer cluster/job/allocation, plan diff repo↔running, log in streaming, incident bundle, snapshot. Zero dipendenze runtime." />
+  <title>Nomad Lens — HashiCorp Nomad ops inside VS Code</title>
+  <meta name="description" content="VS Code extension for HashiCorp Nomad operations: cluster/job/allocation explorer, plan diff repo↔running, streaming logs, incident bundle, snapshot. Zero runtime dependencies." />
   <meta property="og:title" content="Nomad Lens" />
-  <meta property="og:description" content="HashiCorp Nomad ops dentro VS Code — plan diff, log streaming, incident bundle, snapshot." />
+  <meta property="og:description" content="HashiCorp Nomad ops inside VS Code — plan diff, log streaming, incident bundle, snapshot." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ctext y='20' font-size='20'%3E%F0%9F%94%8D%3C/text%3E%3C/svg%3E" />
   <style>
     :root {
@@ -151,16 +151,16 @@
       </svg>
       <p class="eyebrow rise d1">HashiCorp Nomad · VS Code</p>
       <h1 class="rise d1">Nomad Lens</h1>
-      <p class="tagline rise d2">Le operazioni <strong>Nomad</strong> dove già scrivi i tuoi job spec: explorer, plan diff, log, incident. <strong>Zero dipendenze runtime.</strong></p>
+      <p class="tagline rise d2"><strong>Nomad</strong> operations where you already write your job specs: explorer, plan diff, logs, incidents. <strong>Zero runtime dependencies.</strong></p>
       <div class="cta rise d3">
-        <a class="btn primary" href="https://marketplace.visualstudio.com/items?itemName=allannava95.nomad-lens">⬇ Installa dal Marketplace</a>
-        <a class="btn" href="https://github.com/Allan-Nava/nomad-lens/blob/main/docs/GUIDE.md">📖 Guida d'uso</a>
+        <a class="btn primary" href="https://marketplace.visualstudio.com/items?itemName=allannava95.nomad-lens">⬇ Install from the Marketplace</a>
+        <a class="btn" href="https://github.com/Allan-Nava/nomad-lens/blob/main/docs/GUIDE.md">📖 User guide</a>
         <a class="btn" href="https://github.com/Allan-Nava/nomad-lens">★ GitHub</a>
       </div>
       <div class="pills rise d4">
         <span class="pill"><b>0</b> runtime deps</span>
-        <span class="pill">API HTTP Nomad</span>
-        <span class="pill">token <b>solo</b> da env</span>
+        <span class="pill">Nomad HTTP API</span>
+        <span class="pill">tokens from env <b>only</b></span>
         <span class="pill">MIT</span>
       </div>
     </div>
@@ -173,16 +173,16 @@
         <span class="term-title">nomad snapshot — prod</span>
       </div>
 <pre><span class="m"># Nomad snapshot — prod</span>
-<span class="k">jobs totali</span> : 24  (problemi: <span class="w">2</span>)
-<span class="k">nodi       </span> : 6   (non-ready/drain: <span class="w">1</span>)
-<span class="k">deployments</span> : 3   (non healthy: <span class="w">1</span>)
+<span class="k">total jobs </span> : 24  (problems: <span class="w">2</span>)
+<span class="k">nodes      </span> : 6   (non-ready/drain: <span class="w">1</span>)
+<span class="k">deployments</span> : 3   (not healthy: <span class="w">1</span>)
 
-<span class="w">## ⚠ Da guardare</span>
-| Job        | Stato          | Alloc | Failed |
+<span class="w">## ⚠ Needs attention</span>
+| Job        | Status         | Alloc | Failed |
 | packager   | <span class="w">🟠 degraded</span>    | 2/3   | <span class="o">1</span>      |
 | ingest     | <span class="w">🟡 pending</span>     | 0/2   | 0      |
 
-<span class="c">$</span> plan  <span class="m"># diff repo ↔ running, prima di deployare</span>
+<span class="c">$</span> plan  <span class="m"># diff repo ↔ running, before deploying</span>
 <span class="c">~</span> Count: <span class="o">2</span> → <span class="c">3</span>
   <span class="c">~</span> image: <span class="o">"nginx:1.25"</span> → <span class="c">"nginx:1.27"</span></pre>
     </div>
@@ -190,36 +190,36 @@
 
   <main class="wrap">
     <section>
-      <h2>Cosa fa</h2>
-      <p class="sub">Sei feature, un pannello. Tutto read-only e sicuro per default.</p>
+      <h2>What it does</h2>
+      <p class="sub">Six features, one panel. Read-only by default; mutating actions always ask first.</p>
       <div class="grid">
-        <div class="card"><div class="ico">🗂️</div><h3>Cluster explorer</h3><p>Job con health reale — un <code>running</code> con alloc mancanti è <b>degraded</b> — allocation, task, nodi, deployment. Multi-cluster, uno switch.</p></div>
-        <div class="card"><div class="ico">🔀</div><h3>Plan diff repo↔running</h3><p>Apri un <code>.nomad</code>/<code>.hcl</code> e vedi il diff contro il job running <em>prima</em> di deployare. Parse HCL server-side.</p></div>
-        <div class="card"><div class="ico">📜</div><h3>Log in streaming</h3><p>stdout/stderr di qualsiasi task in un Output channel dedicato — streaming, non polling. Più stream affiancati.</p></div>
-        <div class="card"><div class="ico">🚨</div><h3>Incident bundle</h3><p>Un click su un'alloc fallita: cartella <code>incidents/</code> con report (timeline eventi) e coda dei log allegata.</p></div>
-        <div class="card"><div class="ico">📸</div><h3>Cluster snapshot</h3><p>Report markdown di salute: problemi in cima, tabella completa sotto. Perfetto per il check del mattino.</p></div>
-        <div class="card"><div class="ico">🔒</div><h3>Sicuro per default</h3><p>Token ACL solo da env var, mai in settings/log. Avviso se un token viaggia in chiaro su http.</p></div>
+        <div class="card"><div class="ico">🗂️</div><h3>Cluster explorer</h3><p>Jobs with real health — a <code>running</code> one with missing allocs is <b>degraded</b> — allocations, tasks, nodes, deployments. Multi-cluster, one switch.</p></div>
+        <div class="card"><div class="ico">🔀</div><h3>Plan diff repo↔running</h3><p>Open a <code>.nomad</code>/<code>.hcl</code> and see the diff against the running job <em>before</em> deploying. Server-side HCL parsing.</p></div>
+        <div class="card"><div class="ico">📜</div><h3>Streaming logs</h3><p>stdout/stderr of any task in a dedicated Output channel — streaming, not polling. Several streams side by side.</p></div>
+        <div class="card"><div class="ico">🚨</div><h3>Incident bundle</h3><p>One click on a failed alloc: an <code>incidents/</code> folder with a report (event timeline) and the tail of the logs attached.</p></div>
+        <div class="card"><div class="ico">📸</div><h3>Cluster snapshot</h3><p>A markdown health report: problems on top, full table below. Perfect for the morning check.</p></div>
+        <div class="card"><div class="ico">🔒</div><h3>Safe by default</h3><p>ACL tokens from env vars only, never in settings/logs. A warning if a token would travel in cleartext over http.</p></div>
       </div>
     </section>
 
     <section>
-      <h2>Installazione</h2>
-      <p class="sub">Dal Marketplace (publisher <code>allannava95</code>) o da <code>.vsix</code>.</p>
-      <pre class="code">code --install-extension nomad-lens-&lt;versione&gt;.vsix</pre>
-      <p class="sub" style="margin-top:18px">Poi configura i cluster in <code>settings.json</code> — il token si legge da una env var, mai salvato:</p>
+      <h2>Installation</h2>
+      <p class="sub">From the Marketplace (publisher <code>allannava95</code>) or from a <code>.vsix</code>.</p>
+      <pre class="code">code --install-extension nomad-lens-&lt;version&gt;.vsix</pre>
+      <p class="sub" style="margin-top:18px">Then configure your clusters in <code>settings.json</code> — the token is read from an env var, never stored:</p>
       <pre class="code"><span class="k">"nomadLens.clusters"</span>: [
   { "name": "dev",  "address": "http://nomad-dev.example:4646" },
   { "name": "prod", "address": "https://nomad.example:4646",
     "namespace": "default", "tokenEnv": "NOMAD_TOKEN_PROD" }
 ]</pre>
-      <p class="note">La <a href="https://github.com/Allan-Nava/nomad-lens/blob/main/docs/GUIDE.md">guida d'uso completa</a> copre explorer, plan, log, incident bundle, snapshot, troubleshooting e sicurezza.</p>
+      <p class="note">The <a href="https://github.com/Allan-Nava/nomad-lens/blob/main/docs/GUIDE.md">full user guide</a> covers the explorer, plan, logs, incident bundle, snapshot, troubleshooting and security.</p>
     </section>
   </main>
 
   <footer>
     <div class="wrap">
       Nomad Lens — MIT · <a href="https://github.com/Allan-Nava/nomad-lens">github.com/Allan-Nava/nomad-lens</a><br/>
-      <span class="note">Non affiliato con HashiCorp. Nomad è un marchio di HashiCorp.</span>
+      <span class="note">Not affiliated with HashiCorp. Nomad is a trademark of HashiCorp.</span>
     </div>
   </footer>
 </body>
