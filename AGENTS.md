@@ -6,7 +6,8 @@ Questo file definisce le regole operative per gli agent (Copilot, Claude, altri 
 
 ## Regole di lavoro (SEMPRE)
 
-- **Ogni commit = release taggata `vX.Y.Z`**: nuova sezione in `CHANGELOG.md` (Keep a Changelog, in italiano) + `git tag -a vX.Y.Z -m "Release X.Y.Z"`. Bump `minor` per novita' sostanziali, `patch` per fix. Il `version` di package.json deve coincidere col tag. **Esenti**: auto-commit su `.claude/settings.json` e commit `report:` CI.
+- **TUTTO IN INGLESE**: codice (identificatori, commenti, stringhe utente, messaggi di errore/log) e documentazione (`README.md`, `CHANGELOG.md`, `BACKLOG.md`, `docs/`, JSDoc, messaggi di commit e titoli/descrizioni di PR e issue) si scrivono **solo in inglese**. La chat con l'utente resta in italiano.
+- **Ogni commit = release taggata `vX.Y.Z`**: nuova sezione in `CHANGELOG.md` (Keep a Changelog, in inglese) + `git tag -a vX.Y.Z -m "Release X.Y.Z"`. Bump `minor` per novita' sostanziali, `patch` per fix. Il `version` di package.json deve coincidere col tag. **Esenti**: auto-commit su `.claude/settings.json` e commit `report:` CI.
 - **MAI `git push`**: lo fa sempre l'utente. MAI `Co-Authored-By` nei commit.
 - **Gate prima di chiudere**: `npx tsc --noEmit` + `npm test` verdi (stessi check della CI).
 - **Logica nel core puro** `src/core/` (MAI import `vscode` li') con test in `test/run.ts`; `src/extension.ts` e' solo glue UI.

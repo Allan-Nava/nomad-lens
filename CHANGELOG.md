@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.3
+
+### Changed
+
+- English is now the required language for everything in the repository: code (identifiers, comments, user-facing strings, error and log messages) and documentation (`README.md`, `CHANGELOG.md`, `BACKLOG.md`, `docs/`, JSDoc, commit messages, PR and issue titles/bodies). The rule is recorded in `CLAUDE.md` and `AGENTS.md`; changelog entries from this release on are written in English (earlier entries are left as they are).
+
 ## 0.9.2
 
 Hardening dei test sul glue finora scoperto.
