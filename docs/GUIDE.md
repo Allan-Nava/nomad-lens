@@ -84,6 +84,19 @@ Nomad implements the revert by re-registering the old spec as a **new** version:
 
 > Timestamps: Nomad reports submit times in nanoseconds; the report shows them as ISO dates.
 
+## 4c. Why is my job not scheduling?
+
+A job stuck in `pending` with no allocations is a *scheduling* problem, not a task problem, and Nomad records the reason in the evaluation rather than in any log. Right-click the job → **Explain Placement Failures**: Nomad Lens reads the evaluations and renders the scheduler's counters as sentences, for example:
+
+- `3 nodes filtered by constraint ${attr.kernel.name} = plan9`
+- `not enough memory on 2 nodes`
+- `no nodes available in datacenter dc1`
+- `quota exhausted: prod`
+
+Jobs in that state are also marked in the tree with `⚠ cannot place`, with the first reason in the tooltip — so you notice before you go looking. Only jobs that already look stuck are checked (one extra API call each), and if the check fails the tree keeps working normally.
+
+If there are no placement failures the report says so and points you at the allocations instead: the scheduler did its job and the tasks are the ones failing to start.
+
 ## 5. Streaming logs
 
 - Expand job → alloc → task and click the task (or right-click → **Follow Task Logs**).

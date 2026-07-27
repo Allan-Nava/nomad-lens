@@ -17,6 +17,10 @@ import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWa
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
 import { parseVersions, versionPickItem, renderVersionHistory, renderVersionDiff } from './core/versions';
+import { latestPlacementFailures, placementSummary, renderPlacementReport } from './core/placement';
+
+/** Max placement checks in flight while marking stuck jobs in the tree. */
+const PLACEMENT_CONCURRENCY = 4;
 import { deployStatus, deployStatusBar, deployNotification, isDeployStalled } from './core/deploy';
 
 type Node =
@@ -37,6 +41,8 @@ const HEALTH_ICON: Record<string, string> = {
 class NomadTree implements vscode.TreeDataProvider<Node> {
   private emitter = new vscode.EventEmitter<Node | undefined>();
   readonly onDidChangeTreeData = this.emitter.event;
+  /** jobId → why the scheduler cannot place it (NOM-15), refreshed with the list. */
+  private placementWarn = new Map<string, string>();
 
   constructor(private getClient: () => NomadClient | null) {}
 
@@ -64,6 +70,12 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
         item.description = `${health} · ${node.job.running}/${node.job.desired} alloc${node.job.failed ? ` · ${node.job.failed} failed` : ''}`;
         item.iconPath = new vscode.ThemeIcon(HEALTH_ICON[health] ?? 'question');
         item.contextValue = 'job';
+        const stuck = this.placementWarn.get(node.job.id);
+        if (stuck) {
+          item.description = `⚠ cannot place · ${item.description}`;
+          item.iconPath = new vscode.ThemeIcon('warning');
+          item.tooltip = `Placement failed — ${stuck}`;
+        }
         return item;
       }
       case 'alloc': {
@@ -102,6 +114,22 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
     }
   }
 
+  /** Flags the jobs the scheduler cannot place (NOM-15). Only jobs that already
+   *  look stuck are checked — one extra API call each — and a failure here is
+   *  swallowed: diagnostics must never take the tree down. */
+  private async markStuckJobs(client: NomadClient, jobs: JobSummary[]): Promise<void> {
+    this.placementWarn.clear();
+    const stuck = jobs.filter((j) => j.status !== 'dead' && j.desired > 0 && j.running === 0);
+    await mapPool(stuck, PLACEMENT_CONCURRENCY, async (j) => {
+      try {
+        const report = latestPlacementFailures(await client.evaluations(j.id));
+        if (report) this.placementWarn.set(j.id, placementSummary(report));
+      } catch {
+        /* best effort */
+      }
+    });
+  }
+
   async getChildren(node?: Node): Promise<Node[]> {
     const client = this.getClient();
     if (!client) return [{ kind: 'leaf', label: 'Nessun cluster configurato (nomadLens.clusters)', iconId: 'gear' }];
@@ -115,6 +143,7 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
       }
       if (node.kind === 'section' && node.label === 'Jobs') {
         const jobs = await client.jobs();
+        await this.markStuckJobs(client, jobs);
         return jobs
           .sort((a, b) => a.id.localeCompare(b.id))
           .map((job) => ({ kind: 'job' as const, job }));
@@ -398,6 +427,18 @@ export function activate(context: vscode.ExtensionContext): void {
         tree.refresh();
       } catch (err) {
         void vscode.window.showErrorMessage(`Start job fallito — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.explainPlacement', async (node?: { job: JobSummary }) => {
+      if (!client || !node) return;
+      try {
+        const report = latestPlacementFailures(await client.evaluations(node.job.id));
+        const md = renderPlacementReport(node.job.id, report);
+        const doc = await vscode.workspace.openTextDocument({ content: md, language: 'markdown' });
+        await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Placement diagnostics failed — ${err}`);
       }
     }),
 

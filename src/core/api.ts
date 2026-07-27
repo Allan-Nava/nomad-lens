@@ -311,6 +311,12 @@ export class NomadClient {
     await this.registerJob(job);
   }
 
+  /** Evaluations of a job — the scheduler's record of why (and whether) it
+   *  managed to place the task groups (NOM-15). */
+  async evaluations(id: string): Promise<RawEvaluation[]> {
+    return this.getJson<RawEvaluation[]>(`job/${encodeURIComponent(id)}/evaluations`);
+  }
+
   // --- job version history (NOM-14) --------------------------------------------
 
   /** Version history of a job. `diffs=true` makes Nomad return, alongside the
@@ -415,6 +421,32 @@ export interface PlanResult {
   Diff?: JobDiff;
   Warnings?: string;
   FailedTGAllocs?: Record<string, unknown> | null;
+}
+
+// --- evaluation / placement types (NOM-15) ------------------------------------
+
+/** Scheduler metrics for one task group it could not place. The maps are
+ *  reason → number of nodes ruled out for that reason. */
+export interface RawAllocMetric {
+  NodesEvaluated?: number;
+  NodesFiltered?: number;
+  NodesExhausted?: number;
+  NodesAvailable?: Record<string, number> | null;
+  ClassFiltered?: Record<string, number> | null;
+  ConstraintFiltered?: Record<string, number> | null;
+  ClassExhausted?: Record<string, number> | null;
+  DimensionExhausted?: Record<string, number> | null;
+  QuotaExhausted?: string[] | null;
+  CoalescedFailures?: number;
+}
+
+export interface RawEvaluation {
+  ID?: string;
+  Status?: string;
+  TriggeredBy?: string;
+  /** Nanoseconds, like every Nomad timestamp. */
+  ModifyTime?: number;
+  FailedTGAllocs?: Record<string, RawAllocMetric> | null;
 }
 
 // --- job version history types (NOM-14) ---------------------------------------

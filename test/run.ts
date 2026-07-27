@@ -16,6 +16,12 @@ import {
   mapPool,
 } from '../src/core/api';
 import { parseVersions, versionPickItem, renderVersionHistory, renderVersionDiff } from '../src/core/versions';
+import {
+  explainMetric,
+  latestPlacementFailures,
+  placementSummary,
+  renderPlacementReport,
+} from '../src/core/placement';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings, snapshotFileName } from '../src/core/report';
 import { ACTIONS, confirmMessage } from '../src/core/actions';
 import {
@@ -64,6 +70,33 @@ job "lens-run" {
       config {
         command = "/bin/sh"
         args    = ["-c", "while true; do echo tick; sleep 2; done"]
+      }
+      resources {
+        cores  = 1
+        memory = 32
+      }
+    }
+  }
+}
+`;
+
+// Job che NON puo' essere piazzato: constraint su un kernel inesistente. Serve a
+// verificare i placement diagnostics (NOM-15) contro lo scheduler vero.
+const UNPLACEABLE_HCL = `
+job "lens-noplace" {
+  datacenters = ["dc1"]
+  type = "service"
+  constraint {
+    attribute = "\${attr.kernel.name}"
+    value     = "plan9"
+  }
+  group "w" {
+    count = 1
+    task "app" {
+      driver = "raw_exec"
+      config {
+        command = "/bin/sh"
+        args    = ["-c", "sleep 60"]
       }
       resources {
         cores  = 1
@@ -444,6 +477,66 @@ async function main(): Promise<void> {
     assert.ok(renderVersionDiff('packager', vs[2]).includes('Oldest version'));
   });
 
+  // --- placement (NOM-15) ------------------------------------------------------
+
+  await test('explainMetric: turns the scheduler counters into reasons', () => {
+    const f = explainMetric('web', {
+      NodesEvaluated: 5,
+      NodesFiltered: 3,
+      NodesExhausted: 2,
+      CoalescedFailures: 4,
+      ConstraintFiltered: { '${attr.kernel.name} = plan9': 3 },
+      DimensionExhausted: { memory: 2, cpu: 0 },
+      QuotaExhausted: ['prod'],
+      NodesAvailable: { dc1: 5, dc2: 0 },
+    });
+    assert.strictEqual(f.taskGroup, 'web');
+    assert.strictEqual(f.coalescedFailures, 4);
+    assert.ok(f.reasons[0].includes('constraint'), f.reasons[0]);
+    assert.ok(f.reasons.some((r) => r.includes('memory')));
+    assert.ok(f.reasons.some((r) => r.includes('quota exhausted')));
+    assert.ok(f.reasons.some((r) => r.includes('dc2')));
+    // counters at zero must not become noise
+    assert.ok(!f.reasons.some((r) => r.includes('cpu')), f.reasons.join(' | '));
+    assert.ok(!f.reasons.some((r) => r.includes('dc1')), f.reasons.join(' | '));
+  });
+
+  await test('explainMetric: never returns an empty explanation', () => {
+    assert.ok(explainMetric('web', {}).reasons[0].includes('no nodes were evaluated'));
+    assert.ok(explainMetric('web', { NodesEvaluated: 3, NodesExhausted: 3 }).reasons[0].includes('out of resources'));
+    assert.strictEqual(explainMetric('web', { NodesEvaluated: 3 }).reasons.length, 1);
+  });
+
+  await test('latestPlacementFailures: picks the newest eval that actually failed', () => {
+    const evals = [
+      { ID: 'old', Status: 'complete', ModifyTime: 1_000_000_000_000_000, FailedTGAllocs: { web: { NodesExhausted: 1, NodesEvaluated: 1 } } },
+      { ID: 'new', Status: 'blocked', ModifyTime: 2_000_000_000_000_000, FailedTGAllocs: { web: { DimensionExhausted: { memory: 2 } } } },
+      // newest of all, but it placed fine: must not hide the failure above
+      { ID: 'ok', Status: 'complete', ModifyTime: 3_000_000_000_000_000, FailedTGAllocs: null },
+    ];
+    const report = latestPlacementFailures(evals)!;
+    assert.strictEqual(report.evalId, 'new');
+    assert.strictEqual(report.timeMs, 2_000_000_000); // ns → ms
+    assert.ok(placementSummary(report).includes('memory'));
+    assert.strictEqual(latestPlacementFailures([{ ID: 'ok', FailedTGAllocs: {} }]), null);
+    assert.strictEqual(latestPlacementFailures([]), null);
+  });
+
+  await test('renderPlacementReport: failure report and the healthy case', () => {
+    const md = renderPlacementReport(
+      'packager',
+      latestPlacementFailures([
+        { ID: 'e1', Status: 'blocked', ModifyTime: 2_000_000_000_000_000, FailedTGAllocs: { web: { DimensionExhausted: { memory: 2 }, NodesEvaluated: 4 } } },
+      ])
+    );
+    assert.ok(md.includes('# Placement failures — packager'));
+    assert.ok(md.includes('`web`'));
+    assert.ok(md.includes('memory'));
+    const ok = renderPlacementReport('packager', null);
+    assert.ok(ok.includes('No placement failures'));
+    assert.ok(ok.includes('allocations'), 'the healthy case should point elsewhere');
+  });
+
   await test('desiredFromJob: somma i Count dei task group (0 se assenti)', () => {
     assert.strictEqual(desiredFromJob({ TaskGroups: [{ Count: 3 }, { Count: 2 }] }), 5);
     assert.strictEqual(desiredFromJob({ TaskGroups: [{ Count: 1 }, {}] }), 1); // Count mancante = 0
@@ -606,6 +699,19 @@ async function main(): Promise<void> {
         await new Promise((r) => setTimeout(r, 200));
       }
       assert.fail('revert did not restore count = 2');
+    });
+
+    await test('integration: placement diagnostics explain an impossible constraint', async () => {
+      await client.registerJob(await client.parseHcl(UNPLACEABLE_HCL));
+      let report = null;
+      for (let i = 0; i < 40 && !report; i++) {
+        report = latestPlacementFailures(await client.evaluations('lens-noplace'));
+        if (!report) await new Promise((r) => setTimeout(r, 250));
+      }
+      assert.ok(report, 'the scheduler should record a placement failure for lens-noplace');
+      const md = renderPlacementReport('lens-noplace', report);
+      assert.ok(md.includes('kernel.name'), `report should name the failing constraint:\n${md}`);
+      assert.ok(placementSummary(report).includes('constraint'), placementSummary(report));
     });
 
     await test('integration: restartAllocation + startJob su alloc raw_exec running', async () => {

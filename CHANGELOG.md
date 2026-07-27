@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0
+
+### Added
+
+- **Placement diagnostics** (NOM-15): *Explain Placement Failures* on the job context menu — reads the job's evaluations (`GET /v1/job/:id/evaluations`) and turns the scheduler's `FailedTGAllocs` counters into sentences: nodes filtered by a named `constraint`, exhausted dimensions (`memory`, `cpu`, …), class filtering, exhausted quotas, datacenters with no available nodes. The report names the evaluation and ends with the typical fixes.
+  - Jobs that look stuck (`desired > 0`, nothing running, not dead) are also **flagged in the tree** with `⚠ cannot place` and a tooltip carrying the first reason. Only those jobs are checked — one extra API call each, `PLACEMENT_CONCURRENCY = 4` — and a failed check is swallowed so diagnostics can never take the tree down.
+  - Pure logic in `core/placement.ts` (`explainMetric`, `latestPlacementFailures`, `placementSummary`, `renderPlacementReport`), tested: counters at zero must not become noise, an empty metric still yields an explanation, and the newest evaluation that *actually failed* wins over a more recent successful one.
+  - Integration test against real Nomad: a job constrained to a non-existent kernel is registered, and the report is asserted to name the failing constraint. Verified **38/38 green** in the Docker suite (Nomad 1.9.5).
+
 ## 0.10.0
 
 Opens the v0.5 — Deep dive milestone.
