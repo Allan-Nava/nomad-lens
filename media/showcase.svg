@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0F2233"/><stop offset="1" stop-color="#0A1420"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00CA8E"/><stop offset="1" stop-color="#3FE0A8"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+    .t { fill: #e8eef3; } .m { fill: #8fa3b3; } .g { fill: #3FE0A8; } .w { fill: #ffbd6b; } .r { fill: #ff8a80; }
+  </style>
+
+  <rect width="1000" height="560" rx="14" fill="url(#bg)"/>
+
+  <!-- activity bar -->
+  <rect x="0" y="0" width="52" height="560" fill="#0a121d"/>
+  <g transform="translate(14,20)">
+    <svg width="24" height="24" viewBox="0 0 512 512">
+      <rect width="512" height="512" rx="112" fill="#0A1420"/>
+      <line x1="322" y1="322" x2="418" y2="418" stroke="url(#green)" stroke-width="40" stroke-linecap="round"/>
+      <circle cx="228" cy="228" r="112" fill="none" stroke="url(#green)" stroke-width="28"/>
+      <path d="M228 150 l67.5 39 v78 l-67.5 39 l-67.5 -39 v-78 z" fill="url(#green)"/>
+    </svg>
+  </g>
+
+  <!-- header -->
+  <text x="76" y="40" class="t" font-size="15" font-weight="700">NOMAD</text>
+  <text x="150" y="40" class="m" font-size="13">CLUSTER</text>
+  <text x="924" y="40" class="m mono" font-size="12" text-anchor="end">filter: 6/24 · "packager"</text>
+  <line x1="76" y1="54" x2="924" y2="54" stroke="#1c2f3f"/>
+
+  <!-- tree (left) -->
+  <g class="mono" font-size="13.5" transform="translate(76,84)">
+    <text x="0" y="0" class="g">▾ Jobs</text>
+
+    <circle cx="24" cy="26" r="5.5" fill="#3FE0A8"/>
+    <text x="40" y="30" class="t">transcoder</text><text x="360" y="30" class="m" text-anchor="end">running · 3/3</text>
+
+    <circle cx="24" cy="54" r="5.5" fill="#ff9f43"/>
+    <text x="40" y="58" class="t">packager</text><text x="360" y="58" class="w" text-anchor="end">degraded · 2/3 · 1 failed</text>
+    <text x="40" y="84" class="w">⚠ OOM · restart loop ×4</text><text x="360" y="84" class="m" text-anchor="end">worker-02</text>
+    <text x="40" y="108" class="m">▸ app</text>
+
+    <circle cx="24" cy="132" r="5.5" fill="#ffd166"/>
+    <text x="40" y="136" class="t">ingest</text><text x="360" y="136" class="w" text-anchor="end">pending · 0/2</text>
+    <text x="40" y="160" class="w">⚠ won't place: cpu exhausted</text>
+
+    <text x="0" y="196" class="g">▾ Nodes</text>
+    <text x="18" y="222" class="t">● worker-01</text><text x="360" y="222" class="m" text-anchor="end">ready</text>
+    <text x="18" y="246" class="t">● worker-02</text><text x="360" y="246" class="w" text-anchor="end">ready (drain 3 left)</text>
+
+    <text x="0" y="282" class="g">▾ Deployments</text>
+    <text x="18" y="308" class="t">packager</text><text x="360" y="308" class="m" text-anchor="end">running · canary</text>
+  </g>
+
+  <!-- divider -->
+  <line x1="452" y1="66" x2="452" y2="512" stroke="#1c2f3f"/>
+
+  <!-- plan diff panel (right) -->
+  <g transform="translate(480,84)">
+    <text x="0" y="0" class="t" font-size="13" font-weight="700">Plan — packager.nomad vs running</text>
+    <rect x="0" y="16" width="444" height="196" rx="10" fill="#08111b" stroke="#1c2f3f"/>
+    <g class="mono" font-size="13" transform="translate(18,44)">
+      <text x="0" y="0" class="m">Job diff (Edited):</text>
+      <text x="0" y="30" class="g">~ web</text>
+      <text x="16" y="54" class="w">~ Count: "2" → "3"</text>
+      <text x="16" y="78" class="g">~ app</text>
+      <text x="32" y="102" class="w">~ image: "nginx:1.25" → "nginx:1.27"</text>
+      <text x="0" y="134" class="r">⚠ Placement failed for: cache</text>
+    </g>
+
+    <text x="0" y="248" class="t" font-size="13" font-weight="700">Resource usage vs requested</text>
+    <rect x="0" y="264" width="444" height="120" rx="10" fill="#08111b" stroke="#1c2f3f"/>
+    <g class="mono" font-size="12.5" transform="translate(18,290)">
+      <text x="0" y="0" class="m">task    cpu           mem</text>
+      <text x="0" y="26" class="t">app     120/100 MHz</text><text x="150" y="26" class="w">58/64 MiB ⚠ 91%</text>
+      <text x="0" y="52" class="t">sidecar  8/100 MHz</text><text x="150" y="52" class="m">6/64 MiB · 9% idle</text>
+    </g>
+  </g>
+
+  <!-- status bar -->
+  <rect x="0" y="524" width="1000" height="36" fill="#08111b"/>
+  <text x="76" y="547" class="mono g" font-size="12.5">$(rocket) nomad: prod</text>
+  <text x="280" y="547" class="mono w" font-size="12.5">⟳ deploy packager 2/3 · canary 1</text>
+  <text x="924" y="547" class="mono m" font-size="12" text-anchor="end">Nomad Lens</text>
+</svg>

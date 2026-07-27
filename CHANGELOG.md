@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.16.1
+
+### Added
+
+- **Overview illustration in the README** (NOM-8, interim): a stylized `media/showcase.png` (generated from `media/showcase.svg`) showing the cluster tree with OOM/restart-loop flags and "won't place" diagnostics, the plan diff repo↔running, live resource usage and the deployment status bar. Clearly an illustration, to be replaced with real captures/GIF from the Extension Host before the store launch. Excluded from the `.vsix` (loaded from the raw URL on the Marketplace page).
+
+### Changed
+
+- Backlog: new **v1.0 — Marketplace release** milestone (NOM-8 screenshots, NOM-21 listing polish, NOM-22 first publish); `NOM-21` done (`galleryBanner`, README badges, `homepage`/`bugs`/`qna`). GitHub milestones reconciled and the Italian/English duplicates removed.
+
 ## 0.16.0
 
 ### Added

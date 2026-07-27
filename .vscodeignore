@@ -6,6 +6,8 @@ site/**
 docker/**
 docker-compose.yml
 Dockerfile.test
+media/showcase.svg
+media/showcase.png
 src/**
 test/**
 .test/**

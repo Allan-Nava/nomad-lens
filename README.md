@@ -9,6 +9,10 @@
 
 🌐 **[Website →](https://allan-nava.github.io/nomad-lens/)** · 📖 **[Full documentation →](https://allan-nava.github.io/nomad-lens/guide.html)** (source: [docs/GUIDE.md](docs/GUIDE.md))
 
+![Nomad Lens — cluster explorer with real health, plan diff and live resource usage](media/showcase.png)
+
+<sub>Illustration of the Nomad view: job health with OOM/restart-loop flags, "won't place" diagnostics, plan diff repo↔running, and live resource usage.</sub>
+
 ## Features
 
 - **Cluster explorer** — jobs with real health (a `running` job missing allocations shows as **degraded**), allocations with restart counts, tasks, nodes (ready/drain), active deployments. Multi-cluster via settings, one click to switch.

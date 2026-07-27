@@ -44,6 +44,6 @@ Answering "what changed?" and "why is it broken?" without leaving the editor.
 
 Road to the first public release: the extension is feature-complete, this is the polish and the actual publish.
 
-- [ ] **NOM-8 — Screenshots/GIF in the README**: the last asset for the Marketplace page (PNG icon and `allannava95` publisher already done). Manual capture from the Extension Host (explorer, plan diff, deployment watch, placement diagnostics).
+- [ ] **NOM-8 — Screenshots/GIF in the README**: the last asset for the Marketplace page (PNG icon and `allannava95` publisher already done). Interim: a stylized overview illustration (`media/showcase.png`, generated from `media/showcase.svg`) is in the README — still to be replaced with real captures/GIF from the Extension Host (explorer, plan diff, deployment watch, placement diagnostics).
 - [x] **NOM-21 — Marketplace listing polish**: `galleryBanner` (dark `#0A1420`), README badges (Marketplace version/installs, CI, license), `homepage`/`bugs`/`qna` links in `package.json`; `categories`/`keywords` verified. Manifest validated with `vsce package`.
 - [ ] **NOM-22 — First publish + tag `v1.0.0`**: configure the `VSCE_PAT` secret (publisher `allannava95`), confirm the tag == `package.json` guard, then push `v1.0.0` so the `publish` job ships to the Marketplace (+ Open VSX). Gate: NOM-8 and NOM-21 done.
