@@ -25,6 +25,17 @@ Features and infrastructure shipped in the 0.2.x series.
 - [x] **NOM-6 — Image inventory**: "Image Inventory (all clusters)" command → job × cluster matrix with the docker image per cell and a `≠` marker on jobs with image drift. Pure rendering `renderImageInventory` in `core/drift.ts` (tested).
 - [x] **NOM-7 — Schedulable snapshot**: "Save Cluster Snapshot to File" command that writes the snapshot to `nomadLens.snapshotPath` (a folder → `nomad-snapshot-<cluster>-<date>.md`, or an exact `.md` file; supports `~`). Pure file name `snapshotFileName` (tested). Bindable to an external task/scheduler for the morning report.
 
+## v0.5 — Deep dive
+
+Answering "what changed?" and "why is it broken?" without leaving the editor.
+
+- [ ] **NOM-14 — Job version history + revert**: `GET /v1/job/:id/versions?diffs=true` → pick two versions of a running job and render the diff (reusing the `renderPlanDiff` renderer), so you can see what the last deploy actually changed. **Revert** to a version via `POST /v1/job/:id/revert` — mutating and destructive, so confirmation by typing the job id, as with Stop Job. Pure version list/diff rendering in `core/versions.ts`, tested.
+- [ ] **NOM-15 — Placement diagnostics**: for a job stuck in `pending` with no allocations, `GET /v1/job/:id/evaluations` + `GET /v1/evaluation/:id` → render the `FailedTGAllocs` breakdown (nodes filtered by constraint, exhausted dimensions, class filtered, quota) as a readable "why it does not place" report. Surfaced in the tree as a ⚠ on the job and as a command. Pure `renderPlacementFailures` in `core/placement.ts`, tested.
+- [ ] **NOM-16 — Live resource usage**: `GET /v1/client/allocation/:id/stats` → actual CPU/memory per task against what the spec requests, in the allocation tooltip and as a per-job report that flags over- and under-provisioning. Fetched with `mapPool` (limited concurrency) and degrading gracefully when the client node is unreachable. Pure `renderResourceUsage` in `core/resources.ts`, tested.
+- [ ] **NOM-17 — Node drain & eligibility**: from the node context menu, toggle scheduling eligibility (`POST /v1/node/:id/eligibility`) and start/stop a drain (`POST /v1/node/:id/drain`, with a deadline). The most destructive action in the extension: drain requires confirmation by typing the node id, and the tree shows the drain progress (remaining allocations). Metadata in `core/actions.ts`, tested.
+- [ ] **NOM-18 — Filter the tree**: a filter box on the Nomad view — free text on the job name plus a "problems only" toggle (degraded/pending/failed), so a cluster with hundreds of jobs stays usable. Pure predicate `jobMatchesFilter` in `core/report.ts`, tested.
+- [ ] **NOM-19 — Codebase in English** (chore): translate the Italian still left in `src/` and `test/` — comments, user-facing strings (`Nessun cluster configurato`, `Digita "…" per confermare`), headings of the generated reports (`## Tutti i job`) and test names — per the rule in `CLAUDE.md`/`AGENTS.md`. Touches visible output, so it needs the test expectations updated in the same pass.
+
 ## Release
 
 - [ ] **NOM-8 — Screenshots/GIF in the README**: the last asset for the Marketplace page (PNG icon and `allannava95` publisher already done).

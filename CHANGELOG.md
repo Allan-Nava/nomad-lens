@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.5
+
+### Added
+
+- New backlog milestone **v0.5 — Deep dive** (`BACKLOG.md`): job version history + revert (`NOM-14`), placement diagnostics for jobs that will not schedule (`NOM-15`), live resource usage vs requested (`NOM-16`), node drain & eligibility (`NOM-17`), tree filter (`NOM-18`), and the chore of translating the remaining Italian in `src/`/`test/` to English (`NOM-19`). Planning only — no code changes; the milestone and its issues land on GitHub through the backlog sync.
+
 ## 0.9.4
 
 ### Changed
