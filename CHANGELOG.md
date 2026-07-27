@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.0
+
+### Added
+
+- **Live resource usage** (NOM-16): *Resource Usage vs Requested* on the job context menu — for every running allocation it reads `GET /v1/client/allocation/:id/stats` and joins the measured CPU (MHz) and resident memory (MiB) with what the spec requests, in a task × alloc table with percentages. Two verdicts on top: **⚠ near the memory limit** (≥90% of the request — the OOM kill about to happen) and **💤 oversized reservation** (≤20% — capacity the cluster is holding for nobody).
+  - Two cases are deliberately *not* flagged: a task with no request in the spec (nothing to compare against) and a task using 0 (not yet started, not an oversized reservation). Both are covered by tests.
+  - The stats endpoint is served by the *client* node, not the server: allocations are fetched with `mapPool` at concurrency 8 and one unreachable node yields an empty row set instead of voiding the whole report.
+  - Pure logic in `core/resources.ts` (`taskRequests`, `parseAllocStats`, `usageFlag`, `renderResourceUsage`), tested — including the bytes→MiB conversion of `RSS`.
+  - Integration test against real Nomad: a `raw_exec` job is registered, its stats are read and the request is asserted to come from the spec. Verified **43/43 green** in the Docker suite.
+
 ## 0.11.0
 
 ### Added

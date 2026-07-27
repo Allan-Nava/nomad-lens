@@ -18,6 +18,7 @@ import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './cor
 import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
 import { parseVersions, versionPickItem, renderVersionHistory, renderVersionDiff } from './core/versions';
 import { latestPlacementFailures, placementSummary, renderPlacementReport } from './core/placement';
+import { parseAllocStats, renderResourceUsage, taskRequests, TaskUsage } from './core/resources';
 
 /** Max placement checks in flight while marking stuck jobs in the tree. */
 const PLACEMENT_CONCURRENCY = 4;
@@ -427,6 +428,34 @@ export function activate(context: vscode.ExtensionContext): void {
         tree.refresh();
       } catch (err) {
         void vscode.window.showErrorMessage(`Start job fallito — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.resourceUsage', async (node?: { job: JobSummary }) => {
+      if (!client || !node) return;
+      const active = client;
+      try {
+        const [allocs, spec] = await Promise.all([active.allocations(node.job.id), active.job(node.job.id)]);
+        const running = allocs.filter((a) => a.clientStatus === 'running');
+        if (!running.length) {
+          void vscode.window.showInformationMessage(`No running allocation for ${node.job.id}.`);
+          return;
+        }
+        const requests = taskRequests(spec as Parameters<typeof taskRequests>[0]);
+        const perAlloc = await mapPool(running, 8, async (a): Promise<TaskUsage[]> => {
+          try {
+            return parseAllocStats(a.id, await active.allocStats(a.id), requests);
+          } catch {
+            // The stats endpoint is served by the client node: one unreachable
+            // node must not void the whole report.
+            return [];
+          }
+        });
+        const md = renderResourceUsage(node.job.id, active.clusterName, perAlloc.flat());
+        const doc = await vscode.workspace.openTextDocument({ content: md, language: 'markdown' });
+        await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Resource usage failed — ${err}`);
       }
     }),
 

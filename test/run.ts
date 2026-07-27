@@ -22,6 +22,12 @@ import {
   placementSummary,
   renderPlacementReport,
 } from '../src/core/placement';
+import {
+  parseAllocStats,
+  renderResourceUsage,
+  taskRequests,
+  usageFlag,
+} from '../src/core/resources';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings, snapshotFileName } from '../src/core/report';
 import { ACTIONS, confirmMessage } from '../src/core/actions';
 import {
@@ -477,6 +483,63 @@ async function main(): Promise<void> {
     assert.ok(renderVersionDiff('packager', vs[2]).includes('Oldest version'));
   });
 
+  // --- resources (NOM-16) ------------------------------------------------------
+
+  await test('taskRequests: CPU/memory per task from the job spec', () => {
+    const req = taskRequests({
+      TaskGroups: [
+        { Tasks: [{ Name: 'app', Resources: { CPU: 500, MemoryMB: 256 } }, { Name: 'sidecar', Resources: null }] },
+        { Tasks: null },
+      ],
+    });
+    assert.deepStrictEqual(req.app, { cpuMhz: 500, memMib: 256 });
+    assert.deepStrictEqual(req.sidecar, { cpuMhz: 0, memMib: 0 });
+  });
+
+  await test('parseAllocStats: bytes → MiB, joined with the requests', () => {
+    const rows = parseAllocStats(
+      'abcdef1234',
+      {
+        Tasks: {
+          app: { ResourceUsage: { CpuStats: { TotalTicks: 480.6 }, MemoryStats: { RSS: 250 * 1024 * 1024 } } },
+          probe: { ResourceUsage: null },
+        },
+      },
+      { app: { cpuMhz: 500, memMib: 256 } }
+    );
+    assert.deepStrictEqual(rows.map((r) => r.task), ['app', 'probe']);
+    assert.strictEqual(rows[0].memMib, 250);
+    assert.strictEqual(rows[0].cpuMhz, 481);
+    assert.strictEqual(rows[0].memRequestMib, 256);
+    // a task with no usage and no request must not invent numbers
+    assert.strictEqual(rows[1].memMib, 0);
+    assert.strictEqual(rows[1].memRequestMib, 0);
+  });
+
+  await test('usageFlag: near the limit, oversized, and the cases to leave alone', () => {
+    const base = { alloc: 'a', task: 't', cpuMhz: 0, cpuRequestMhz: 0 };
+    assert.strictEqual(usageFlag({ ...base, memMib: 240, memRequestMib: 256 }), 'over');
+    assert.strictEqual(usageFlag({ ...base, memMib: 20, memRequestMib: 256 }), 'under');
+    assert.strictEqual(usageFlag({ ...base, memMib: 128, memRequestMib: 256 }), 'ok');
+    // no request → nothing to compare against
+    assert.strictEqual(usageFlag({ ...base, memMib: 500, memRequestMib: 0 }), 'ok');
+    // not started yet (0 used) is not an oversized reservation
+    assert.strictEqual(usageFlag({ ...base, memMib: 0, memRequestMib: 256 }), 'ok');
+  });
+
+  await test('renderResourceUsage: table, warnings, and the empty case', () => {
+    const md = renderResourceUsage('packager', 'prod', [
+      { alloc: 'aaaaaaaa11', task: 'app', cpuMhz: 480, memMib: 250, cpuRequestMhz: 500, memRequestMib: 256 },
+      { alloc: 'bbbbbbbb22', task: 'idle', cpuMhz: 5, memMib: 10, cpuRequestMhz: 500, memRequestMib: 256 },
+    ]);
+    assert.ok(md.includes('| app | aaaaaaaa |'), md);
+    assert.ok(md.includes('98%'), md);
+    assert.ok(md.includes('Near the memory limit'));
+    assert.ok(md.includes('Oversized reservation'));
+    const empty = renderResourceUsage('packager', 'prod', []);
+    assert.ok(empty.includes('No running allocation reported statistics'));
+  });
+
   // --- placement (NOM-15) ------------------------------------------------------
 
   await test('explainMetric: turns the scheduler counters into reasons', () => {
@@ -746,6 +809,39 @@ async function main(): Promise<void> {
         await new Promise((r) => setTimeout(r, 250));
       }
       assert.fail('startJob non ha riportato su lens-run');
+    });
+
+    await test('integration: allocStats reports usage joined with the requests', async () => {
+      const spec = RAW_HCL.replace('lens-run', 'lens-stats');
+      await client.registerJob(await client.parseHcl(spec));
+      let allocId = '';
+      for (let i = 0; i < 60 && !allocId; i++) {
+        const running = (await client.allocations('lens-stats')).find((a) => a.clientStatus === 'running');
+        if (running) allocId = running.id;
+        else await new Promise((r) => setTimeout(r, 500));
+      }
+      assert.ok(allocId, 'no running alloc for lens-stats');
+
+      const requests = taskRequests(
+        (await client.job('lens-stats')) as Parameters<typeof taskRequests>[0]
+      );
+      assert.strictEqual(requests.app.memMib, 32, 'the request should come from the spec');
+
+      // The stats endpoint is served by the client node and can lag right after
+      // the task starts, so retry before declaring failure.
+      let rows: ReturnType<typeof parseAllocStats> = [];
+      for (let i = 0; i < 20 && !rows.length; i++) {
+        try {
+          rows = parseAllocStats(allocId, await client.allocStats(allocId), requests);
+        } catch {
+          await new Promise((r) => setTimeout(r, 500));
+        }
+      }
+      const app = rows.find((r) => r.task === 'app');
+      assert.ok(app, `stats should include the app task, got ${JSON.stringify(rows)}`);
+      assert.strictEqual(app.memRequestMib, 32);
+      assert.ok(app.memMib >= 0 && app.cpuMhz >= 0);
+      assert.ok(renderResourceUsage('lens-stats', 'dev', rows).includes('| app |'));
     });
   } catch (err) {
     console.log(`skip integration tests (${err})`);

@@ -146,6 +146,19 @@ Right-click a job → **Compare Job Across Clusters**: pick two clusters and Nom
 
 From the Nomad view title → **Image Inventory (all clusters)**: Nomad Lens queries every configured cluster and produces a **job × cluster** matrix with the docker image per cell; jobs with different images across clusters are marked `≠`. The at-a-glance answer to "who is on the old tag".
 
+## 6g. Resource usage vs requested
+
+Right-click a job → **Resource Usage vs Requested**: for every running allocation Nomad Lens reads the live stats from the client node and puts them next to what the spec asks for, per task:
+
+| Task | Alloc | CPU used/req | Mem used/req | |
+|---|---|---|---|---|
+| app | a1b2c3d4 | 480/500 MHz (96%) | 250/256 MiB (98%) | ⚠ near the limit |
+| idle | e5f6a7b8 | 5/500 MHz (1%) | 10/256 MiB (4%) | 💤 oversized |
+
+Two things get called out: tasks at **≥90%** of their memory request (the OOM kill that is about to happen — raise `memory`) and tasks at **≤20%** (a reservation the cluster is holding for nobody). Tasks with no request in the spec, and tasks that have not started yet, are left unflagged rather than guessed at.
+
+Stats come from the *client* node that runs the allocation, so a node being unreachable removes those rows from the report instead of failing it.
+
 ## 7. Cluster snapshot
 
 **Nomad Lens: Cluster Snapshot Report** generates a health markdown:

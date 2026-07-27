@@ -311,6 +311,12 @@ export class NomadClient {
     await this.registerJob(job);
   }
 
+  /** Live resource usage of an allocation (NOM-16). Served by the *client* node,
+   *  not the server: it fails when that node is unreachable or the alloc is gone. */
+  async allocStats(allocId: string): Promise<RawAllocStats> {
+    return this.getJson<RawAllocStats>(`client/allocation/${encodeURIComponent(allocId)}/stats`);
+  }
+
   /** Evaluations of a job — the scheduler's record of why (and whether) it
    *  managed to place the task groups (NOM-15). */
   async evaluations(id: string): Promise<RawEvaluation[]> {
@@ -421,6 +427,22 @@ export interface PlanResult {
   Diff?: JobDiff;
   Warnings?: string;
   FailedTGAllocs?: Record<string, unknown> | null;
+}
+
+// --- allocation stats types (NOM-16) ------------------------------------------
+
+export interface RawTaskResourceUsage {
+  ResourceUsage?: {
+    /** TotalTicks is MHz, the same unit as `Resources.CPU` in the job spec. */
+    CpuStats?: { TotalTicks?: number; Percent?: number } | null;
+    /** RSS is in bytes. */
+    MemoryStats?: { RSS?: number; Cache?: number; Usage?: number } | null;
+  } | null;
+}
+
+export interface RawAllocStats {
+  Tasks?: Record<string, RawTaskResourceUsage> | null;
+  ResourceUsage?: RawTaskResourceUsage['ResourceUsage'];
 }
 
 // --- evaluation / placement types (NOM-15) ------------------------------------
