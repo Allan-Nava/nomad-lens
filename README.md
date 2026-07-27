@@ -1,5 +1,10 @@
 # Nomad Lens
 
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/allannava95.nomad-lens?label=Marketplace&color=00CA8E)](https://marketplace.visualstudio.com/items?itemName=allannava95.nomad-lens)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/allannava95.nomad-lens?color=00CA8E)](https://marketplace.visualstudio.com/items?itemName=allannava95.nomad-lens)
+[![CI](https://github.com/Allan-Nava/nomad-lens/actions/workflows/ci.yml/badge.svg)](https://github.com/Allan-Nava/nomad-lens/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 **HashiCorp Nomad operations inside VS Code** — the place where you already edit your job specs.
 
 🌐 **[Website →](https://allan-nava.github.io/nomad-lens/)** · 📖 **[Full documentation →](https://allan-nava.github.io/nomad-lens/guide.html)** (source: [docs/GUIDE.md](docs/GUIDE.md))

@@ -40,6 +40,10 @@ Answering "what changed?" and "why is it broken?" without leaving the editor.
 
 - [x] **NOM-20 — Published documentation generated from the guide**: `site/guide.html` is built from `docs/GUIDE.md` by `npm run site` (pure renderer `core/markdown.ts`, tested; `scripts/build-site.ts` for the shell), and the Pages workflow runs it before uploading — so the website can never document a version of the extension that no longer exists. The guide itself was deepened: sequential numbering, a complete command reference, a complete settings reference and a recipes section; the landing page links into it by anchor.
 
-## Release
+## v1.0 — Marketplace release
 
-- [ ] **NOM-8 — Screenshots/GIF in the README**: the last asset for the Marketplace page (PNG icon and `allannava95` publisher already done).
+Road to the first public release: the extension is feature-complete, this is the polish and the actual publish.
+
+- [ ] **NOM-8 — Screenshots/GIF in the README**: the last asset for the Marketplace page (PNG icon and `allannava95` publisher already done). Manual capture from the Extension Host (explorer, plan diff, deployment watch, placement diagnostics).
+- [x] **NOM-21 — Marketplace listing polish**: `galleryBanner` (dark `#0A1420`), README badges (Marketplace version/installs, CI, license), `homepage`/`bugs`/`qna` links in `package.json`; `categories`/`keywords` verified. Manifest validated with `vsce package`.
+- [ ] **NOM-22 — First publish + tag `v1.0.0`**: configure the `VSCE_PAT` secret (publisher `allannava95`), confirm the tag == `package.json` guard, then push `v1.0.0` so the `publish` job ships to the Marketplace (+ Open VSX). Gate: NOM-8 and NOM-21 done.

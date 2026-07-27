@@ -10,6 +10,15 @@
     "type": "git",
     "url": "https://github.com/Allan-Nava/nomad-lens"
   },
+  "homepage": "https://allan-nava.github.io/nomad-lens/",
+  "bugs": {
+    "url": "https://github.com/Allan-Nava/nomad-lens/issues"
+  },
+  "qna": "marketplace",
+  "galleryBanner": {
+    "color": "#0A1420",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
