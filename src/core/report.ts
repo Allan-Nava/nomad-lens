@@ -9,6 +9,7 @@ import {
   ObjectDiff,
   PlanResult,
 } from './api';
+import { nodeNeedsAttention, nodeStateLabel } from './nodes';
 
 const STATUS_ICON: Record<string, string> = {
   running: '🟢',
@@ -48,7 +49,9 @@ export function renderSnapshot(
 ): string {
   const now = new Date().toISOString();
   const problems = jobs.filter((j) => ['degraded', 'pending', 'failed'].includes(jobHealth(j)));
-  const badNodes = nodes.filter((n) => n.status !== 'ready' || n.drain);
+  // Un nodo ineligible non ospita nuove alloc: e' un problema da report mattutino
+  // esattamente come un drain (NOM-17), quindi vale la stessa definizione del tree.
+  const badNodes = nodes.filter(nodeNeedsAttention);
   const badDeploys = deployments.filter((d) => !['successful', 'cancelled'].includes(d.status));
 
   const lines: string[] = [
@@ -78,7 +81,7 @@ export function renderSnapshot(
   }
   if (badNodes.length) {
     lines.push('### Nodi');
-    for (const n of badNodes) lines.push(`- 🔴 ${n.name}: status=${n.status}${n.drain ? ' (drain)' : ''}`);
+    for (const n of badNodes) lines.push(`- 🔴 ${n.name}: ${nodeStateLabel(n)}`);
     lines.push('');
   }
   if (badDeploys.length) {

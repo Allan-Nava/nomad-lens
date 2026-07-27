@@ -28,6 +28,14 @@ import {
   taskRequests,
   usageFlag,
 } from '../src/core/resources';
+import {
+  countActiveAllocs,
+  drainBody,
+  eligibilityBody,
+  nodeNeedsAttention,
+  nodeStateLabel,
+  stopDrainBody,
+} from '../src/core/nodes';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings, snapshotFileName } from '../src/core/report';
 import { ACTIONS, confirmMessage } from '../src/core/actions';
 import {
@@ -143,8 +151,8 @@ async function main(): Promise<void> {
       'test-cluster',
       jobs,
       [
-        { id: 'n1', name: 'worker-01', status: 'ready', drain: false },
-        { id: 'n2', name: 'worker-02', status: 'ready', drain: true },
+        { id: 'n1', name: 'worker-01', status: 'ready', drain: false, eligibility: 'eligible' },
+        { id: 'n2', name: 'worker-02', status: 'ready', drain: true, eligibility: 'ineligible' },
       ],
       [
         {
@@ -481,6 +489,63 @@ async function main(): Promise<void> {
     assert.ok(!none.includes('```'), none);
     // the oldest one has no predecessor
     assert.ok(renderVersionDiff('packager', vs[2]).includes('Oldest version'));
+  });
+
+  // --- nodes: drain / eligibility (NOM-17) -------------------------------------
+
+  await test('drainBody: seconds → nanoseconds, and -1 stays "no deadline"', () => {
+    assert.deepStrictEqual(drainBody('n1', 3600), {
+      NodeID: 'n1',
+      DrainSpec: { Deadline: 3_600_000_000_000, IgnoreSystemJobs: false },
+    });
+    // -1 means "no deadline": multiplying it would turn it into a huge negative
+    assert.strictEqual(drainBody('n1', -1).DrainSpec!.Deadline, -1);
+    assert.strictEqual(drainBody('n1', 600, true).DrainSpec!.IgnoreSystemJobs, true);
+  });
+
+  await test('stopDrainBody / eligibilityBody: shapes Nomad expects', () => {
+    assert.deepStrictEqual(stopDrainBody('n1'), { NodeID: 'n1', DrainSpec: null });
+    assert.deepStrictEqual(eligibilityBody('n1', true), { NodeID: 'n1', Eligibility: 'eligible' });
+    assert.deepStrictEqual(eligibilityBody('n1', false), { NodeID: 'n1', Eligibility: 'ineligible' });
+  });
+
+  await test('countActiveAllocs: terminal allocations do not hold a drain back', () => {
+    assert.strictEqual(
+      countActiveAllocs([
+        { ClientStatus: 'running' },
+        { ClientStatus: 'pending' },
+        { ClientStatus: 'complete' },
+        { ClientStatus: 'failed' },
+        { ClientStatus: 'lost' },
+      ]),
+      2
+    );
+    assert.strictEqual(countActiveAllocs([]), 0);
+  });
+
+  await test('nodeStateLabel / nodeNeedsAttention: drain, eligibility, healthy', () => {
+    assert.strictEqual(nodeStateLabel({ status: 'ready', drain: false, eligibility: 'eligible' }), 'ready');
+    assert.strictEqual(
+      nodeStateLabel({ status: 'ready', drain: false, eligibility: 'ineligible' }),
+      'ready · ineligible'
+    );
+    assert.strictEqual(
+      nodeStateLabel({ status: 'ready', drain: true, eligibility: 'ineligible', drainRemaining: 1 }),
+      'ready · draining (1 alloc left)'
+    );
+    // draining implies ineligible: saying both would be noise
+    assert.ok(!nodeStateLabel({ status: 'ready', drain: true, eligibility: 'ineligible' }).includes('ineligible'));
+    assert.strictEqual(nodeNeedsAttention({ status: 'ready', drain: false, eligibility: 'eligible' }), false);
+    assert.strictEqual(nodeNeedsAttention({ status: 'ready', drain: false, eligibility: 'ineligible' }), true);
+    assert.strictEqual(nodeNeedsAttention({ status: 'down', drain: false, eligibility: 'eligible' }), true);
+  });
+
+  await test('actions: drain is destructive and typed, undoing it is not', () => {
+    assert.strictEqual(ACTIONS.drainNode.destructive, true);
+    assert.strictEqual(ACTIONS.drainNode.requireType, true);
+    assert.strictEqual(ACTIONS.stopDrain.destructive, false);
+    assert.strictEqual(ACTIONS.nodeIneligible.requireType, false);
+    assert.ok(confirmMessage('drainNode', 'worker-01').includes('worker-01'));
   });
 
   // --- resources (NOM-16) ------------------------------------------------------
@@ -842,6 +907,41 @@ async function main(): Promise<void> {
       assert.strictEqual(app.memRequestMib, 32);
       assert.ok(app.memMib >= 0 && app.cpuMhz >= 0);
       assert.ok(renderResourceUsage('lens-stats', 'dev', rows).includes('| app |'));
+    });
+
+    // Ultimo test di integrazione: il drain sposta le alloc del nodo (unico nel
+    // dev agent), quindi tutto quello che serve running deve venire prima.
+    await test('integration: node eligibility toggle and drain/stop-drain round trip', async () => {
+      const node = (await client.nodes())[0];
+      assert.ok(node, 'the dev agent should expose one node');
+      assert.strictEqual(node.eligibility, 'eligible');
+
+      await client.setNodeEligibility(node.id, false);
+      let after = (await client.nodes()).find((n) => n.id === node.id)!;
+      assert.strictEqual(after.eligibility, 'ineligible');
+      assert.ok(nodeNeedsAttention(after), 'an ineligible node needs attention');
+      assert.ok(nodeStateLabel(after).includes('ineligible'));
+
+      await client.setNodeEligibility(node.id, true);
+      after = (await client.nodes()).find((n) => n.id === node.id)!;
+      assert.strictEqual(after.eligibility, 'eligible');
+
+      // drain with a short deadline, then cancel it
+      await client.drainNode(node.id, 600);
+      for (let i = 0; i < 20; i++) {
+        after = (await client.nodes()).find((n) => n.id === node.id)!;
+        if (after.drain) break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      assert.strictEqual(after.drain, true, 'the node should be draining');
+
+      await client.stopDrain(node.id);
+      for (let i = 0; i < 20; i++) {
+        after = (await client.nodes()).find((n) => n.id === node.id)!;
+        if (!after.drain) return;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      assert.fail('stopDrain did not cancel the drain');
     });
   } catch (err) {
     console.log(`skip integration tests (${err})`);

@@ -3,6 +3,7 @@
 // Uses the global fetch available in Node 18+ / the VS Code extension host.
 
 import { aggregateDeployment, DeployTaskGroup } from './deploy';
+import { countActiveAllocs, drainBody, eligibilityBody, stopDrainBody } from './nodes';
 
 /** Ogni richiesta non-streaming aborta dopo questo timeout: un cluster
  *  irraggiungibile non deve lasciare l'albero appeso all'infinito. */
@@ -10,6 +11,9 @@ export const REQUEST_TIMEOUT_MS = 8000;
 
 /** Max fetch `/v1/job/:id` in volo insieme durante l'enrichment del desired. */
 export const JOB_FETCH_CONCURRENCY = 8;
+
+/** Max drain-progress lookups in flight while listing nodes (NOM-17). */
+export const NODE_FETCH_CONCURRENCY = 4;
 
 function truncate(s: string, n = 500): string {
   return s.length > n ? `${s.slice(0, n)}…` : s;
@@ -111,6 +115,10 @@ export interface NodeSummary {
   name: string;
   status: string;
   drain: boolean;
+  /** `eligible` / `ineligible` — whether the scheduler may place here (NOM-17). */
+  eligibility: string;
+  /** Allocations still to be evicted; only computed for draining nodes. */
+  drainRemaining?: number;
   allocCount?: number;
 }
 
@@ -248,9 +256,48 @@ export class NomadClient {
   }
 
   async nodes(): Promise<NodeSummary[]> {
-    type Raw = { ID: string; Name: string; Status: string; Drain: boolean };
+    type Raw = { ID: string; Name: string; Status: string; Drain: boolean; SchedulingEligibility?: string };
     const raw = await this.getJson<Raw[]>('nodes');
-    return raw.map((n) => ({ id: n.ID, name: n.Name, status: n.Status, drain: n.Drain }));
+    const list = raw.map((n) => ({
+      id: n.ID,
+      name: n.Name,
+      status: n.Status,
+      drain: n.Drain,
+      eligibility: n.SchedulingEligibility ?? (n.Drain ? 'ineligible' : 'eligible'),
+    }));
+    // Drain progress costs one call per draining node — and draining nodes are
+    // few by nature. Best effort: a failure just leaves the count unknown.
+    await mapPool(
+      list.filter((n) => n.drain),
+      NODE_FETCH_CONCURRENCY,
+      async (n) => {
+        try {
+          (n as NodeSummary).drainRemaining = countActiveAllocs(
+            await this.getJson<{ ClientStatus?: string }[]>(`node/${encodeURIComponent(n.id)}/allocations`)
+          );
+        } catch {
+          /* unknown */
+        }
+      }
+    );
+    return list;
+  }
+
+  // --- node drain / eligibility (NOM-17): mutating, confirmed in the glue -------
+
+  /** Starts draining a node: every allocation is migrated off it. */
+  async drainNode(nodeId: string, deadlineSeconds: number): Promise<void> {
+    await this.postVoid(`node/${encodeURIComponent(nodeId)}/drain`, drainBody(nodeId, deadlineSeconds));
+  }
+
+  /** Cancels an ongoing drain. */
+  async stopDrain(nodeId: string): Promise<void> {
+    await this.postVoid(`node/${encodeURIComponent(nodeId)}/drain`, stopDrainBody(nodeId));
+  }
+
+  /** Toggles whether the scheduler may place new allocations on a node. */
+  async setNodeEligibility(nodeId: string, eligible: boolean): Promise<void> {
+    await this.postVoid(`node/${encodeURIComponent(nodeId)}/eligibility`, eligibilityBody(nodeId, eligible));
   }
 
   async deployments(): Promise<DeploymentSummary[]> {

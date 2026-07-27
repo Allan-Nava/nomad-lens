@@ -125,6 +125,18 @@ From the tree context menu, actions that **change** the cluster — always behin
 
 None of these has a default button: `Enter` does not trigger them.
 
+## 6b-bis. Node drain and eligibility
+
+Nodes in the **Nodes** section have their own context menu:
+
+- **Toggle Node Scheduling Eligibility** — makes the node ineligible (no *new* allocations land there; the running ones stay) or eligible again. Single confirmation, fully reversible. The classic first step before maintenance.
+- **Drain Node** — evicts *every* allocation off the node. You pick a deadline first (1 hour — the Nomad default · 10 minutes · no deadline: allocations still running when it expires are killed), then confirm by **typing the node name**. This is the most destructive action in Nomad Lens. There is no `-force` equivalent: an immediate kill is not offered on purpose.
+- **Stop Draining Node** — cancels an ongoing drain. Single confirmation.
+
+While a node drains, the tree shows how many allocations are still to be evicted (`ready · draining (3 allocs left)`), so you can watch it finish. A draining node is ineligible by definition, so the label does not repeat both.
+
+Ineligible and draining nodes also show up in the **cluster snapshot** problems section: a node that accepts no new allocations is exactly what you want to notice at the morning check, even if it never went `down`.
+
 ## 6c. Deployment watch
 
 While a deployment is active, the status bar shows live progress — `$(sync~spin) deploy <job> healthy/desired · canary N` — and you get a notification when:

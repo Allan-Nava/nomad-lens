@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -93,6 +93,18 @@
         "title": "Nomad Lens: Explain Placement Failures"
       },
       {
+        "command": "nomadLens.drainNode",
+        "title": "Nomad Lens: Drain Node"
+      },
+      {
+        "command": "nomadLens.stopDrain",
+        "title": "Nomad Lens: Stop Draining Node"
+      },
+      {
+        "command": "nomadLens.toggleEligibility",
+        "title": "Nomad Lens: Toggle Node Scheduling Eligibility"
+      },
+      {
         "command": "nomadLens.resourceUsage",
         "title": "Nomad Lens: Resource Usage vs Requested"
       },
@@ -161,6 +173,18 @@
         {
           "command": "nomadLens.explainPlacement",
           "when": "view == nomadLens.explorer && viewItem == job"
+        },
+        {
+          "command": "nomadLens.drainNode",
+          "when": "view == nomadLens.explorer && viewItem =~ /^node-(eligible|ineligible)$/"
+        },
+        {
+          "command": "nomadLens.stopDrain",
+          "when": "view == nomadLens.explorer && viewItem == node-draining"
+        },
+        {
+          "command": "nomadLens.toggleEligibility",
+          "when": "view == nomadLens.explorer && viewItem =~ /^node-/"
         },
         {
           "command": "nomadLens.resourceUsage",

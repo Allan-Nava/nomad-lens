@@ -2,7 +2,16 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { ClusterConfig, NomadClient, JobSummary, AllocSummary, tokenSentInClear, mapPool } from './core/api';
+import {
+  ClusterConfig,
+  NomadClient,
+  JobSummary,
+  AllocSummary,
+  NodeSummary,
+  tokenSentInClear,
+  mapPool,
+} from './core/api';
+import { DRAIN_DEADLINE_PRESETS, nodeNeedsAttention, nodeStateLabel } from './core/nodes';
 import { grepLogs, renderGrepReport, LogSource } from './core/grep';
 import {
   summarizeJob,
@@ -29,6 +38,7 @@ type Node =
   | { kind: 'job'; job: JobSummary }
   | { kind: 'alloc'; alloc: AllocSummary }
   | { kind: 'task'; alloc: AllocSummary; task: string }
+  | { kind: 'node'; node: NodeSummary }
   | { kind: 'leaf'; label: string; iconId?: string };
 
 const HEALTH_ICON: Record<string, string> = {
@@ -107,6 +117,17 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
         };
         return item;
       }
+      case 'node': {
+        const n = node.node;
+        const item = new vscode.TreeItem(n.name, vscode.TreeItemCollapsibleState.None);
+        item.description = nodeStateLabel(n);
+        const attention = nodeNeedsAttention(n);
+        item.iconPath = new vscode.ThemeIcon(attention ? (n.drain ? 'debug-pause' : 'warning') : 'pass-filled');
+        item.tooltip = `${n.name} (${n.id})\nstatus: ${n.status} · eligibility: ${n.eligibility}${n.drain ? ' · draining' : ''}`;
+        // The context value drives which drain/eligibility commands are offered.
+        item.contextValue = `node-${n.drain ? 'draining' : n.eligibility}`;
+        return item;
+      }
       case 'leaf': {
         const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.None);
         if (node.iconId) item.iconPath = new vscode.ThemeIcon(node.iconId);
@@ -151,11 +172,7 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
       }
       if (node.kind === 'section' && node.label === 'Nodes') {
         const nodes = await client.nodes();
-        return nodes.map((n) => ({
-          kind: 'leaf' as const,
-          label: `${n.name} — ${n.status}${n.drain ? ' (drain)' : ''}`,
-          iconId: n.status === 'ready' && !n.drain ? 'pass-filled' : 'error',
-        }));
+        return nodes.map((n) => ({ kind: 'node' as const, node: n }));
       }
       if (node.kind === 'section' && node.label === 'Deployments') {
         const deps = await client.deployments();
@@ -428,6 +445,59 @@ export function activate(context: vscode.ExtensionContext): void {
         tree.refresh();
       } catch (err) {
         void vscode.window.showErrorMessage(`Start job fallito — ${err}`);
+      }
+    }),
+
+    // --- node drain / eligibility (NOM-17) -------------------------------------
+
+    vscode.commands.registerCommand('nomadLens.drainNode', async (item?: { node: NodeSummary }) => {
+      if (!client || !item) return;
+      const n = item.node;
+      const deadline = await vscode.window.showQuickPick(
+        DRAIN_DEADLINE_PRESETS.map((p) => ({ label: p.label, seconds: p.seconds })),
+        { placeHolder: `Drain deadline for ${n.name} — allocations still running when it expires are killed` }
+      );
+      if (!deadline) return;
+      // Typed confirmation on the node id: draining evicts everything on it.
+      if (!(await confirmAction('drainNode', n.name))) return;
+      try {
+        await client.drainNode(n.id, deadline.seconds);
+        void vscode.window.showInformationMessage(`Node ${n.name} is draining (${deadline.label}).`);
+        tree.refresh();
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Drain node failed — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.stopDrain', async (item?: { node: NodeSummary }) => {
+      if (!client || !item) return;
+      if (!(await confirmAction('stopDrain', item.node.name))) return;
+      try {
+        await client.stopDrain(item.node.id);
+        void vscode.window.showInformationMessage(`Drain of ${item.node.name} cancelled.`);
+        tree.refresh();
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Stop drain failed — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.toggleEligibility', async (item?: { node: NodeSummary }) => {
+      if (!client || !item) return;
+      const n = item.node;
+      const makeEligible = n.eligibility === 'ineligible';
+      if (n.drain && !makeEligible) {
+        void vscode.window.showWarningMessage(`${n.name} is draining: it is already ineligible.`);
+        return;
+      }
+      if (!(await confirmAction(makeEligible ? 'nodeEligible' : 'nodeIneligible', n.name))) return;
+      try {
+        await client.setNodeEligibility(n.id, makeEligible);
+        void vscode.window.showInformationMessage(
+          `Node ${n.name} is now ${makeEligible ? 'eligible' : 'ineligible'} for scheduling.`
+        );
+        tree.refresh();
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Eligibility change failed — ${err}`);
       }
     }),
 

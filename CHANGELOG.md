@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.0
+
+### Added
+
+- **Node drain & scheduling eligibility** (NOM-17): nodes are now first-class tree items (name, state, drain progress, tooltip with the node id) with three commands on their context menu.
+  - *Drain Node* — asks for a deadline first (1 hour, the Nomad default · 10 minutes · no deadline), then requires **typing the node name**: draining evicts every allocation on it, the most destructive action in the extension. Deliberately no `-force` equivalent (immediate kill).
+  - *Stop Draining Node* and *Toggle Node Scheduling Eligibility* — cheap and reversible, so a single confirmation. Toggling to ineligible on an already-draining node is refused with an explanation instead of being sent as a no-op.
+  - Draining nodes show **how many allocations are left** to evict, one extra API call per draining node (`NODE_FETCH_CONCURRENCY = 4`), best-effort: a failure leaves the count unknown rather than breaking the list.
+  - `NodeSummary` now carries `eligibility` (and `drainRemaining`), so the **snapshot report also flags ineligible nodes** — a node that accepts no new allocations is a morning-check problem exactly like a drain. Tree and snapshot share one definition, `nodeNeedsAttention`.
+  - Pure logic in `core/nodes.ts` (`drainBody`, `stopDrainBody`, `eligibilityBody`, `countActiveAllocs`, `nodeStateLabel`, `nodeNeedsAttention`), tested: the drain deadline goes out in **nanoseconds** while `-1` ("no deadline") must pass through unmultiplied, and terminal allocations must not count as holding a drain back.
+  - Integration test against real Nomad: eligibility toggled both ways, then a drain started and cancelled, asserting the state each time. Verified **48/48 green** in the Docker suite.
+
 ## 0.12.0
 
 ### Added
