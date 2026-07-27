@@ -117,6 +117,23 @@ function renderObjectDiff(obj: ObjectDiff, indent: string, out: string[]): void 
   for (const child of obj.Objects ?? []) renderObjectDiff(child, indent + '  ', out);
 }
 
+/** Renders a JobDiff (fields, objects, task groups, tasks) as text lines.
+ *  Shared by the plan diff and the version history diff (NOM-14). */
+export function renderJobDiffLines(diff: JobDiff): string[] {
+  const out: string[] = [];
+  for (const f of diff.Fields ?? []) {
+    if (f.Type === 'None') continue;
+    out.push(`~ ${f.Name}: ${JSON.stringify(f.Old)} → ${JSON.stringify(f.New)}`);
+  }
+  for (const obj of diff.Objects ?? []) renderObjectDiff(obj, '', out);
+  for (const tg of diff.TaskGroups ?? []) {
+    if (tg.Type === 'None') continue;
+    renderObjectDiff(tg, '', out);
+    for (const task of tg.Tasks ?? []) renderObjectDiff(task, '  ', out);
+  }
+  return out;
+}
+
 export function renderPlanDiff(plan: PlanResult): string {
   const out: string[] = [];
   const diff: JobDiff | undefined = plan.Diff;
@@ -124,16 +141,7 @@ export function renderPlanDiff(plan: PlanResult): string {
     out.push('Nessuna differenza: il job spec coincide con quello running. ✅');
   } else {
     out.push(`Job diff (${diff.Type}):`, '');
-    for (const f of diff.Fields ?? []) {
-      if (f.Type === 'None') continue;
-      out.push(`~ ${f.Name}: ${JSON.stringify(f.Old)} → ${JSON.stringify(f.New)}`);
-    }
-    for (const obj of diff.Objects ?? []) renderObjectDiff(obj, '', out);
-    for (const tg of diff.TaskGroups ?? []) {
-      if (tg.Type === 'None') continue;
-      renderObjectDiff(tg, '', out);
-      for (const task of tg.Tasks ?? []) renderObjectDiff(task, '  ', out);
-    }
+    out.push(...renderJobDiffLines(diff));
   }
   if (plan.FailedTGAllocs && Object.keys(plan.FailedTGAllocs).length) {
     out.push('', `⚠ Placement fallito per: ${Object.keys(plan.FailedTGAllocs).join(', ')}`);

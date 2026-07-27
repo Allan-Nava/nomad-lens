@@ -70,6 +70,20 @@ How to read it:
 
 If the diff contains more than you expected, **you find out before** applying.
 
+## 4b. Job version history and revert
+
+Nomad keeps every registered version of a job. Right-click a job → **Job Version History (diff between versions)**: pick a version and Nomad Lens opens a markdown report with the full history table (version, submit time, stable flag, which one is current) and the diff of the version you picked against the immediately older one — the answer to "what did the last deploy actually change?".
+
+To roll back, right-click the job → **Revert Job to a Previous Version**:
+
+1. Pick one of the older versions (the current one is not offered).
+2. Nomad Lens **plans that old spec against what is running** and opens the diff beside your editor: you see exactly what the revert would change *before* deciding. If the preview cannot be produced the revert is not blocked — you get a warning and the confirmation still asks.
+3. Confirm by **typing the job id**, like Stop Job. Reverting replaces the running spec, so it gets the strongest confirmation the extension has.
+
+Nomad implements the revert by re-registering the old spec as a **new** version: nothing is deleted from the history, and reverting a revert is just another revert.
+
+> Timestamps: Nomad reports submit times in nanoseconds; the report shows them as ISO dates.
+
 ## 5. Streaming logs
 
 - Expand job → alloc → task and click the task (or right-click → **Follow Task Logs**).

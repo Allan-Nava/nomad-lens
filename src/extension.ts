@@ -16,6 +16,7 @@ import {
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings, snapshotFileName } from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
+import { parseVersions, versionPickItem, renderVersionHistory, renderVersionDiff } from './core/versions';
 import { deployStatus, deployStatusBar, deployNotification, isDeployStalled } from './core/deploy';
 
 type Node =
@@ -397,6 +398,85 @@ export function activate(context: vscode.ExtensionContext): void {
         tree.refresh();
       } catch (err) {
         void vscode.window.showErrorMessage(`Start job fallito — ${err}`);
+      }
+    }),
+
+    // --- job version history + revert (NOM-14) ---------------------------------
+
+    vscode.commands.registerCommand('nomadLens.jobHistory', async (node?: { job: JobSummary }) => {
+      if (!client || !node) return;
+      const active = client;
+      try {
+        const versions = parseVersions(await active.versions(node.job.id));
+        if (!versions.length) {
+          void vscode.window.showInformationMessage(`No version history for ${node.job.id}.`);
+          return;
+        }
+        const current = versions[0].version;
+        const picked = await vscode.window.showQuickPick(
+          versions.map((v) => ({ ...versionPickItem(v, current), v })),
+          { placeHolder: `Version history — ${node.job.id} (pick a version to see what it changed)` }
+        );
+        if (!picked) return;
+        const text = [
+          renderVersionHistory(node.job.id, versions, current),
+          '',
+          renderVersionDiff(node.job.id, picked.v),
+          '',
+        ].join('\n');
+        const doc = await vscode.workspace.openTextDocument({ content: text, language: 'markdown' });
+        await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Job history failed — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.revertJob', async (node?: { job: JobSummary }) => {
+      if (!client || !node) return;
+      const active = client;
+      let versions;
+      try {
+        versions = parseVersions(await active.versions(node.job.id));
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Job history failed — ${err}`);
+        return;
+      }
+      const current = versions[0]?.version;
+      const older = versions.slice(1);
+      if (!older.length) {
+        void vscode.window.showInformationMessage(`${node.job.id} has a single version: nothing to revert to.`);
+        return;
+      }
+      const picked = await vscode.window.showQuickPick(
+        older.map((v) => ({ ...versionPickItem(v, current), v })),
+        { placeHolder: `Revert ${node.job.id} to which version?` }
+      );
+      if (!picked) return;
+
+      // Preview first: plan that old spec against what is running, so the diff is
+      // on screen before the confirmation. Best-effort — a failed plan must not
+      // block a revert the user then explicitly confirms.
+      try {
+        const plan = await active.plan(picked.v.raw);
+        const text = [
+          `# revert preview — ${node.job.id} → v${picked.v.version} (cluster ${active.clusterName})`,
+          `# ${new Date().toISOString()}`,
+          '',
+          renderPlanDiff(plan),
+        ].join('\n');
+        const doc = await vscode.workspace.openTextDocument({ content: text, language: 'diff' });
+        await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
+      } catch (err) {
+        void vscode.window.showWarningMessage(`Revert preview unavailable — ${err}`);
+      }
+
+      if (!(await confirmAction('revertJob', node.job.id))) return;
+      try {
+        await active.revertJob(node.job.id, picked.v.version);
+        void vscode.window.showInformationMessage(`Job ${node.job.id} reverted to v${picked.v.version}.`);
+        tree.refresh();
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Revert job failed — ${err}`);
       }
     }),
 

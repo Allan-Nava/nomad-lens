@@ -3,7 +3,7 @@
 // Regola CLAUDE.md: i comandi mutativi richiedono SEMPRE conferma esplicita;
 // quelli distruttivi una doppia conferma, mai un default.
 
-export type NomadActionKind = 'restartAlloc' | 'stopJob' | 'startJob';
+export type NomadActionKind = 'restartAlloc' | 'stopJob' | 'startJob' | 'revertJob';
 
 export interface ActionMeta {
   /** verbo mostrato nei messaggi e come label del bottone di conferma. */
@@ -18,6 +18,9 @@ export const ACTIONS: Record<NomadActionKind, ActionMeta> = {
   restartAlloc: { verb: 'Restart allocation', destructive: true, requireType: false },
   stopJob: { verb: 'Stop job', destructive: true, requireType: true },
   startJob: { verb: 'Start job', destructive: false, requireType: false },
+  // NOM-14: reverting replaces the running spec with an older one — as strong a
+  // confirmation as stopping a job.
+  revertJob: { verb: 'Revert job', destructive: true, requireType: true },
 };
 
 /** Messaggio di conferma per un'azione su un target (job id / alloc id). */

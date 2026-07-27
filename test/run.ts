@@ -5,7 +5,17 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
-import { NomadClient, JobSummary, PlanResult, desiredFromJob, tokenSentInClear, taskEventIsOom, mapPool } from '../src/core/api';
+import {
+  NomadClient,
+  JobSummary,
+  JobVersionsResult,
+  PlanResult,
+  desiredFromJob,
+  tokenSentInClear,
+  taskEventIsOom,
+  mapPool,
+} from '../src/core/api';
+import { parseVersions, versionPickItem, renderVersionHistory, renderVersionDiff } from '../src/core/versions';
 import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings, snapshotFileName } from '../src/core/report';
 import { ACTIONS, confirmMessage } from '../src/core/actions';
 import {
@@ -352,6 +362,88 @@ async function main(): Promise<void> {
     assert.ok(!confirmMessage('startJob', 'packager').includes('mutativa'));
   });
 
+  await test('actions: revert job is destructive and requires typing the id', () => {
+    assert.strictEqual(ACTIONS.revertJob.destructive, true);
+    assert.strictEqual(ACTIONS.revertJob.requireType, true);
+    assert.ok(confirmMessage('revertJob', 'packager').includes('packager'));
+  });
+
+  // --- versions (NOM-14) -------------------------------------------------------
+  // Versions come newest-first; Diffs[i] compares Versions[i] with Versions[i+1],
+  // so the oldest one has no diff.
+  const versionsFixture: JobVersionsResult = {
+    Versions: [
+      { Version: 2, Stable: true, SubmitTime: 1_700_000_002_000_000_000 },
+      { Version: 1, Stable: false, SubmitTime: 1_700_000_001_000_000_000 },
+      { Version: 0, Stable: true, SubmitTime: 1_700_000_000_000_000_000 },
+    ],
+    Diffs: [
+      {
+        Type: 'Edited',
+        Name: 'Job',
+        TaskGroups: [
+          { Type: 'Edited', Name: 'web', Fields: [{ Type: 'Edited', Name: 'Count', Old: '2', New: '3' }] },
+        ],
+      },
+      { Type: 'None', Name: 'Job' },
+    ],
+  };
+
+  await test('parseVersions: sorts desc, pairs the diffs, converts nanoseconds', () => {
+    const vs = parseVersions(versionsFixture);
+    assert.deepStrictEqual(vs.map((v) => v.version), [2, 1, 0]);
+    // SubmitTime is in nanoseconds: /1e6 before new Date().
+    assert.strictEqual(vs[0].submitTimeMs, 1_700_000_002_000);
+    assert.strictEqual(new Date(vs[0].submitTimeMs).toISOString(), '2023-11-14T22:13:22.000Z');
+    assert.strictEqual(vs[0].previousVersion, 1);
+    assert.ok(vs[0].diffToPrevious, 'v2 must carry the diff against v1');
+    // the oldest one has no predecessor: no diff, and no off-by-one pairing
+    assert.strictEqual(vs[2].previousVersion, null);
+    assert.strictEqual(vs[2].diffToPrevious, undefined);
+  });
+
+  await test('parseVersions: empty response or missing diffs does not throw', () => {
+    assert.deepStrictEqual(parseVersions({}), []);
+    assert.deepStrictEqual(parseVersions({ Versions: null, Diffs: null }), []);
+    const noDiffs = parseVersions({ Versions: [{ Version: 1 }, { Version: 0 }] });
+    assert.strictEqual(noDiffs[0].diffToPrevious, undefined);
+    assert.strictEqual(noDiffs[0].previousVersion, 0);
+    assert.strictEqual(noDiffs[0].submitTimeMs, 0);
+  });
+
+  await test('versionPickItem: marks current and stable', () => {
+    const vs = parseVersions(versionsFixture);
+    const cur = versionPickItem(vs[0], 2);
+    assert.strictEqual(cur.label, 'v2');
+    assert.ok(cur.description.includes('current'));
+    assert.ok(cur.description.includes('stable'));
+    const old = versionPickItem(vs[1], 2);
+    assert.ok(!old.description.includes('current'));
+    assert.ok(!old.description.includes('stable'));
+  });
+
+  await test('renderVersionHistory: table with every version, current marked', () => {
+    const md = renderVersionHistory('packager', parseVersions(versionsFixture), 2);
+    assert.ok(md.includes('# Job history — packager'));
+    assert.ok(md.includes('| v2 |') && md.includes('| v1 |') && md.includes('| v0 |'));
+    assert.ok(/\| v2 \|.*current \|/.test(md), md);
+    assert.ok(!/\| v1 \|.*current \|/.test(md), md);
+  });
+
+  await test('renderVersionDiff: changes, no changes, oldest version', () => {
+    const vs = parseVersions(versionsFixture);
+    const edited = renderVersionDiff('packager', vs[0]);
+    assert.ok(edited.includes('v2 vs v1'), edited);
+    assert.ok(edited.includes('Count'), edited);
+    assert.ok(edited.includes('```diff'), edited);
+    // Type=None → no changes, and no empty diff block
+    const none = renderVersionDiff('packager', vs[1]);
+    assert.ok(none.includes('No changes between v1 and v0'), none);
+    assert.ok(!none.includes('```'), none);
+    // the oldest one has no predecessor
+    assert.ok(renderVersionDiff('packager', vs[2]).includes('Oldest version'));
+  });
+
   await test('desiredFromJob: somma i Count dei task group (0 se assenti)', () => {
     assert.strictEqual(desiredFromJob({ TaskGroups: [{ Count: 3 }, { Count: 2 }] }), 5);
     assert.strictEqual(desiredFromJob({ TaskGroups: [{ Count: 1 }, {}] }), 1); // Count mancante = 0
@@ -486,6 +578,34 @@ async function main(): Promise<void> {
         await new Promise((r) => setTimeout(r, 200));
       }
       assert.fail('lens-stopme ancora attivo dopo stopJob');
+    });
+
+    await test('integration: job versions expose the diff, revert restores the old spec', async () => {
+      const spec = HCL.replace('lens-demo', 'lens-hist');
+      await client.registerJob(await client.parseHcl(spec));
+      await client.registerJob(await client.parseHcl(spec.replace('count = 2', 'count = 3')));
+
+      let versions = parseVersions(await client.versions('lens-hist'));
+      for (let i = 0; i < 20 && versions.length < 2; i++) {
+        await new Promise((r) => setTimeout(r, 200));
+        versions = parseVersions(await client.versions('lens-hist'));
+      }
+      assert.ok(versions.length >= 2, `expected at least two versions, got ${versions.length}`);
+
+      const current = versions[0];
+      assert.strictEqual(current.previousVersion, versions[1].version);
+      const diffText = renderVersionDiff('lens-hist', current);
+      assert.ok(diffText.includes('Count'), `version diff should mention Count:\n${diffText}`);
+
+      // revert to the oldest version: count must go back to 2
+      const oldest = versions[versions.length - 1];
+      await client.revertJob('lens-hist', oldest.version);
+      for (let i = 0; i < 20; i++) {
+        const job = (await client.job('lens-hist')) as { TaskGroups?: { Count?: number }[] | null };
+        if (desiredFromJob(job) === 2) return;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      assert.fail('revert did not restore count = 2');
     });
 
     await test('integration: restartAllocation + startJob su alloc raw_exec running', async () => {

@@ -311,6 +311,20 @@ export class NomadClient {
     await this.registerJob(job);
   }
 
+  // --- job version history (NOM-14) --------------------------------------------
+
+  /** Version history of a job. `diffs=true` makes Nomad return, alongside the
+   *  versions (newest first), the diff of each one against the next older. */
+  async versions(id: string): Promise<JobVersionsResult> {
+    return this.getJson<JobVersionsResult>(`job/${encodeURIComponent(id)}/versions`, { diffs: 'true' });
+  }
+
+  /** Reverts a job to a previous version: Nomad re-registers that spec as a new
+   *  version. Mutating and destructive — the glue confirms before calling it. */
+  async revertJob(id: string, version: number): Promise<void> {
+    await this.postVoid(`job/${encodeURIComponent(id)}/revert`, { JobID: id, JobVersion: version });
+  }
+
   /** Plan: returns the diff between the submitted spec and the running job. */
   async plan(job: Record<string, unknown>): Promise<PlanResult> {
     const id = String((job as { ID?: string }).ID ?? '');
@@ -401,4 +415,21 @@ export interface PlanResult {
   Diff?: JobDiff;
   Warnings?: string;
   FailedTGAllocs?: Record<string, unknown> | null;
+}
+
+// --- job version history types (NOM-14) ---------------------------------------
+
+/** One entry of `GET /v1/job/:id/versions`: a full job object plus version
+ *  metadata (`SubmitTime` is in nanoseconds, like every Nomad timestamp). */
+export interface RawJobVersion {
+  Version?: number;
+  Stable?: boolean;
+  SubmitTime?: number;
+  [key: string]: unknown;
+}
+
+export interface JobVersionsResult {
+  Versions?: RawJobVersion[] | null;
+  /** `Diffs[i]` pairs `Versions[i]` with `Versions[i+1]`; present with `diffs=true`. */
+  Diffs?: JobDiff[] | null;
 }

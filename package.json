@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "0.9.5",
+  "version": "0.10.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -89,6 +89,14 @@
         "title": "Nomad Lens: Start Job"
       },
       {
+        "command": "nomadLens.jobHistory",
+        "title": "Nomad Lens: Job Version History (diff between versions)"
+      },
+      {
+        "command": "nomadLens.revertJob",
+        "title": "Nomad Lens: Revert Job to a Previous Version"
+      },
+      {
         "command": "nomadLens.grepJob",
         "title": "Nomad Lens: Grep Logs Across Allocations"
       },
@@ -140,6 +148,14 @@
         },
         {
           "command": "nomadLens.startJob",
+          "when": "view == nomadLens.explorer && viewItem == job"
+        },
+        {
+          "command": "nomadLens.jobHistory",
+          "when": "view == nomadLens.explorer && viewItem == job"
+        },
+        {
+          "command": "nomadLens.revertJob",
           "when": "view == nomadLens.explorer && viewItem == job"
         },
         {

@@ -1,6 +1,17 @@
 # Changelog
 
-## 0.9.5
+## 0.10.0
+
+Opens the v0.5 — Deep dive milestone.
+
+### Added
+
+- **Job version history + revert** (NOM-14): two commands on the job context menu.
+  - *Job Version History (diff between versions)* — `GET /v1/job/:id/versions?diffs=true` → a markdown report with the history table (version, submit time, stable flag, current) plus the diff of the picked version against the immediately older one. Answers "what did the last deploy change?".
+  - *Revert Job to a Previous Version* — plans the chosen old spec against the running job and opens that diff **before** asking, so the rollback is visible in advance; the preview is best-effort and never blocks a confirmed revert. Confirmation by typing the job id, like Stop Job (`ACTIONS.revertJob`, destructive + `requireType`). Nomad re-registers the old spec as a new version, so nothing is lost from the history.
+  - New API: `versions()` and `revertJob()`; pure parsing/rendering in `core/versions.ts` (`parseVersions`, `versionPickItem`, `renderVersionHistory`, `renderVersionDiff`), tested — including the nanosecond→ISO conversion of `SubmitTime` and the `Diffs[i] ↔ Versions[i+1]` pairing, where an off-by-one would silently attribute changes to the wrong version.
+  - The diff renderer is now shared: `renderJobDiffLines` extracted from `renderPlanDiff` in `core/report.ts` and reused by the version diff (same output as before).
+- Integration test against a real Nomad: register two versions, read the history, assert the diff mentions `Count`, then revert to the oldest and verify the count goes back. Verified **33/33 green** in the Docker suite (Nomad 1.9.5), integration included.
 
 ### Added
 
