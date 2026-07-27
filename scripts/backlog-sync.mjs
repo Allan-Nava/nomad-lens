@@ -1,22 +1,22 @@
 #!/usr/bin/env node
 // Backlog -> GitHub milestones + issues sync.
-// BACKLOG.md e' la sorgente unica (vedi CLAUDE.md): questo script rende
-// GitHub un mirror di sola lettura del file, mai il contrario.
+// BACKLOG.md is the single source of truth (see CLAUDE.md): this script makes
+// GitHub a read-only mirror of the file, never the other way round.
 //
 // Mappatura:
-//   "## v0.2 — Daily driver"           -> milestone (title = testo heading)
-//   "- [ ] **NOM-1 — Titolo**: corpo"  -> issue (label `backlog`, milestone = sezione)
+//   "## v0.2 — Daily driver"           -> milestone (title = heading text)
+//   "- [ ] **NOM-1 — Title**: body"    -> issue (label `backlog`, milestone = section)
 //   "- [x] ..."                        -> issue chiusa (state_reason: completed)
 //
 // Ogni issue e' ancorata al suo id stabile via marker nel body
-// `<!-- backlog:NOM-1 -->`, cosi' il matching non dipende dal titolo.
-// Idempotente: creare/aggiornare/chiudere solo cio' che diverge.
+// `<!-- backlog:NOM-1 -->`, so the matching does not depend on the title.
+// Idempotent: create/update/close only what diverges.
 //
 // Env:
-//   GITHUB_TOKEN       (richiesto)  token con permessi issues:write
+//   GITHUB_TOKEN       (required)   token with issues:write permission
 //   GITHUB_REPOSITORY  (richiesto)  "owner/repo" (fornito da Actions)
-//   BACKLOG_FILE       (opz.)       default "BACKLOG.md"
-//   DRY_RUN            (opz.)       se valorizzato: nessuna scrittura, solo log
+//   BACKLOG_FILE       (optional)   defaults to "BACKLOG.md"
+//   DRY_RUN            (optional)   if set: no writes, log only
 
 import { readFileSync } from "node:fs";
 
@@ -26,8 +26,8 @@ const FILE = process.env.BACKLOG_FILE || "BACKLOG.md";
 const DRY_RUN = !!process.env.DRY_RUN;
 const LABEL = "backlog";
 
-if (!TOKEN) fail("GITHUB_TOKEN mancante");
-if (!REPO || !REPO.includes("/")) fail("GITHUB_REPOSITORY mancante o malformato");
+if (!TOKEN) fail("GITHUB_TOKEN missing");
+if (!REPO || !REPO.includes("/")) fail("GITHUB_REPOSITORY missing or malformed");
 
 const [OWNER, NAME] = REPO.split("/");
 const API = "https://api.github.com";
@@ -99,7 +99,7 @@ function parseBacklog(md) {
       });
     }
   }
-  // Solo sezioni con almeno un item NOM-n diventano milestone.
+  // Only sections with at least one NOM-n item become milestones.
   return sections.filter((s) => s.items.length > 0);
 }
 
@@ -112,7 +112,7 @@ async function ensureLabel() {
   await gh("POST", `/repos/${OWNER}/${NAME}/labels`, {
     name: LABEL,
     color: "0e8a16",
-    description: "Voce tracciata da BACKLOG.md (sync automatico)",
+    description: "Item tracked from BACKLOG.md (automatic sync)",
   });
 }
 
@@ -150,7 +150,7 @@ function issueBody(item) {
   const lines = [];
   if (item.desc) lines.push(item.desc, "");
   lines.push(marker(item.id));
-  lines.push("", "_Gestita da BACKLOG.md — non modificare a mano; le modifiche vanno nel file._");
+  lines.push("", "_Managed from BACKLOG.md — do not edit by hand; changes go in the file._");
   return lines.join("\n");
 }
 
@@ -160,7 +160,7 @@ function issueTitle(item) {
 
 async function syncIssues(items, milestoneByTitle) {
   const existing = await ghPaged(`/repos/${OWNER}/${NAME}/issues?state=all&labels=${LABEL}`);
-  // Escludi le PR (l'endpoint issues le include).
+  // Exclude PRs (the issues endpoint includes them).
   const issues = existing.filter((i) => !i.pull_request);
   const byId = new Map();
   for (const it of issues) {
@@ -183,7 +183,7 @@ async function syncIssues(items, milestoneByTitle) {
         labels: [LABEL],
         milestone: msNumber > 0 ? msNumber : undefined,
       });
-      // Le issue nascono aperte: se l'item e' gia' spuntato, chiudila.
+      // Issues are created open: if the item is already checked, close it.
       if (item.done && created && created.number) {
         await gh("PATCH", `/repos/${OWNER}/${NAME}/issues/${created.number}`, {
           state: "closed",
@@ -208,12 +208,12 @@ async function syncIssues(items, milestoneByTitle) {
     await gh("PATCH", `/repos/${OWNER}/${NAME}/issues/${found.number}`, patch);
   }
 
-  // Item rimossi dal file ma ancora aperti su GitHub: segnalali (non chiudere:
-  // la chiusura implicita e' pericolosa, meglio un avviso).
+  // Items removed from the file but still open on GitHub: report them (do not close:
+  // an implicit close is dangerous, a warning is better).
   const fileIds = new Set(items.map((i) => i.id));
   for (const [id, it] of byId) {
     if (!fileIds.has(id) && it.state === "open") {
-      console.log(`! issue ${id} #${it.number} aperta ma assente da ${FILE} (chiudi a mano o ripristina la voce)`);
+      console.log(`! issue ${id} #${it.number} open but missing from ${FILE} (close it by hand or restore the item)`);
     }
   }
 }

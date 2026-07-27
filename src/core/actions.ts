@@ -1,7 +1,7 @@
-// Metadati dei comandi mutativi (NOM-3) e costruzione del messaggio di conferma.
-// Puro (NIENTE import 'vscode'): l'interazione (modali, input box) vive nel glue.
-// Regola CLAUDE.md: i comandi mutativi richiedono SEMPRE conferma esplicita;
-// quelli distruttivi una doppia conferma, mai un default.
+// Metadata of the mutating commands (NOM-3) and construction of the confirmation
+// message. Pure (NO 'vscode' import): the interaction (modals, input boxes) lives
+// in the glue. CLAUDE.md rule: mutating commands ALWAYS require an explicit
+// confirmation; destructive ones a double confirmation, never a default button.
 
 export type NomadActionKind =
   | 'restartAlloc'
@@ -14,11 +14,11 @@ export type NomadActionKind =
   | 'nodeEligible';
 
 export interface ActionMeta {
-  /** verbo mostrato nei messaggi e come label del bottone di conferma. */
+  /** Verb shown in the messages and as the confirmation button label. */
   verb: string;
-  /** azione distruttiva → doppia conferma. */
+  /** Destructive action → double confirmation. */
   destructive: boolean;
-  /** richiede di digitare il nome del target (conferma più forte, per stop job). */
+  /** Requires typing the target name (the strongest confirmation, e.g. stop job). */
   requireType: boolean;
 }
 
@@ -38,9 +38,9 @@ export const ACTIONS: Record<NomadActionKind, ActionMeta> = {
   nodeEligible: { verb: 'Make node eligible', destructive: false, requireType: false },
 };
 
-/** Messaggio di conferma per un'azione su un target (job id / alloc id). */
+/** Confirmation message for an action on a target (job id / alloc id / node name). */
 export function confirmMessage(kind: NomadActionKind, target: string): string {
   const m = ACTIONS[kind];
-  const tail = m.destructive ? ' Azione mutativa sul cluster.' : '';
+  const tail = m.destructive ? ' This mutates the cluster.' : '';
   return `${m.verb}: ${target}.${tail}`;
 }

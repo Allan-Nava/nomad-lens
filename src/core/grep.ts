@@ -1,5 +1,5 @@
-// Grep cross-allocation (NOM-4): ricerca pura su testi di log già scaricati.
-// NIENTE import 'vscode' — il fetch parallelo e la presentazione vivono nel glue.
+// Cross-allocation grep (NOM-4): pure search over already-downloaded log text.
+// NO 'vscode' import — the parallel fetching and the presentation live in the glue.
 
 export interface LogSource {
   alloc: string;
@@ -16,8 +16,8 @@ export interface GrepMatch {
   text: string;
 }
 
-/** Cerca `query` (sottostringa, case-insensitive di default) in ogni sorgente,
- *  restituendo le righe che matchano con numero di riga. */
+/** Searches `query` (substring, case-insensitive by default) in every source,
+ *  returning the matching lines with their line number. */
 export function grepLogs(
   sources: LogSource[],
   query: string,
@@ -39,13 +39,13 @@ export function grepLogs(
   return out;
 }
 
-/** Report markdown dei match, raggruppati per allocazione. */
+/** Markdown report of the matches, grouped by allocation. */
 export function renderGrepReport(job: string, query: string, matches: GrepMatch[]): string {
   const allocs = [...new Set(matches.map((m) => m.alloc))];
   const lines: string[] = [
     `# grep "${query}" — ${job}`,
     '',
-    `${matches.length} match in ${allocs.length} allocation.`,
+    `${matches.length} match${matches.length === 1 ? '' : 'es'} in ${allocs.length} allocation${allocs.length === 1 ? '' : 's'}.`,
     '',
   ];
   for (const alloc of allocs) {

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.15.0
+
+Closes the v0.5 — Deep dive milestone.
+
+### Changed
+
+- **The whole codebase is now in English** (NOM-19), completing the 0.9.3 rule: comments and JSDoc across `src/core/*` and `src/extension.ts`, every user-facing string, and the test names in `test/run.ts`.
+  - **User-visible strings changed**, so this is not a cosmetic release: notifications and errors (`Job X stopped.`, `nomad plan failed — …`), input boxes and pickers (`Type "X" to confirm`, `Does not match`, `Yes, proceed`), the vulncheck notification actions (`Undo` / `Stop fixing this`), tree placeholders (`No cluster configured`, `error: …`), and the `nomadLens.*` setting descriptions in `package.json`.
+  - **Generated reports changed too**: the snapshot (`Generated:`, `total jobs`, `## ⚠ Needs attention`, `## All jobs`, `| Job | Status | … |`), the plan diff (`No differences: the job spec matches the running one.`, `⚠ Placement failed for:`), the incident bundle (`## Task event timeline`, `## Attached logs`, `## Analysis`), the cluster comparison (`| Field |`) and the grep report (now `matches`/`allocations` with correct pluralisation). Scripts that grep these reports for Italian strings need updating.
+  - Test assertions that depended on the Italian output were updated in the same pass; the snapshot problems-section test now splits on the English headings.
+  - Also translated, beyond the item's original scope: `scripts/backlog-sync.mjs` (including the `_Managed from BACKLOG.md_` footer written into GitHub issues), the CI/Pages/backlog-sync workflow comments, `Dockerfile.test`, `docker-compose.yml` and the `docker/` fixtures.
+  - Verified **51/51 green** in the Docker suite (Nomad 1.9.5), integration included.
+
 ## 0.14.0
 
 ### Added

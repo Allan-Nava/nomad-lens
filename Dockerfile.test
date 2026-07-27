@@ -1,9 +1,9 @@
-# Immagine per eseguire l'intera suite (unit + integrazione) in modo riproducibile,
-# con lo stesso Nomad pinnato della CI. Usata da docker-compose.yml.
+# Image to run the whole suite (unit + integration) reproducibly,
+# with the same pinned Nomad as CI. Used by docker-compose.yml.
 FROM node:20-bookworm
 
 ARG NOMAD_VERSION=1.9.5
-# Popolato automaticamente da BuildKit con l'arch del target (amd64/arm64).
+# Populated automatically by BuildKit with the target arch (amd64/arm64).
 ARG TARGETARCH
 
 RUN apt-get update \

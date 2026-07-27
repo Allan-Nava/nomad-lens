@@ -1,8 +1,8 @@
 name: Pages
 
-# Pubblica la landing (site/) su GitHub Pages. `configure-pages` con
-# enablement:true abilita Pages da solo al primo run, se i permessi Actions
-# lo consentono; altrimenti abilitala una volta in Settings → Pages
+# Publishes the landing page (site/) to GitHub Pages. `configure-pages` with
+# enablement:true enables Pages by itself on the first run, if the Actions
+# permissions allow it; otherwise enable it once in Settings → Pages
 # (Source: GitHub Actions).
 
 on:

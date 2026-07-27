@@ -5,11 +5,11 @@
 import { aggregateDeployment, DeployTaskGroup } from './deploy';
 import { countActiveAllocs, drainBody, eligibilityBody, stopDrainBody } from './nodes';
 
-/** Ogni richiesta non-streaming aborta dopo questo timeout: un cluster
- *  irraggiungibile non deve lasciare l'albero appeso all'infinito. */
+/** Every non-streaming request aborts after this timeout: an unreachable cluster
+ *  must not leave the tree hanging forever. */
 export const REQUEST_TIMEOUT_MS = 8000;
 
-/** Max fetch `/v1/job/:id` in volo insieme durante l'enrichment del desired. */
+/** Max `/v1/job/:id` fetches in flight while enriching the desired count. */
 export const JOB_FETCH_CONCURRENCY = 8;
 
 /** Max drain-progress lookups in flight while listing nodes (NOM-17). */
@@ -19,8 +19,8 @@ function truncate(s: string, n = 500): string {
   return s.length > n ? `${s.slice(0, n)}…` : s;
 }
 
-/** Desired autorevole di un job = somma dei Count dei suoi task group
- *  (il job summary NON contiene il conteggio configurato). Pura e testabile. */
+/** Authoritative desired count of a job = sum of its task groups' Count
+ *  (the job summary does NOT carry the configured count). Pure and testable. */
 export function desiredFromJob(job: { TaskGroups?: { Count?: number }[] | null }): number {
   return (job.TaskGroups ?? []).reduce((n, tg) => n + (tg.Count ?? 0), 0);
 }
@@ -32,8 +32,8 @@ export interface NomadTaskEvent {
   Details?: Record<string, string>;
 }
 
-/** True se un evento task indica un kill per OOM (out of memory). Pura e testabile.
- *  Match stretto: niente `includes('oom')` nudo (matcherebbe "zoom"/"room"). */
+/** True when a task event indicates an OOM (out of memory) kill. Pure and testable.
+ *  Strict match: no bare `includes('oom')` (it would match "zoom"/"room"). */
 export function taskEventIsOom(ev: NomadTaskEvent): boolean {
   if (ev.Details && (ev.Details.oom_killed === 'true' || ev.Details.oom === 'true')) return true;
   const msg = (ev.DisplayMessage ?? '').toLowerCase();
@@ -45,8 +45,8 @@ export function taskEventIsOom(ev: NomadTaskEvent): boolean {
   );
 }
 
-/** map con concorrenza limitata: esegue `fn` su tutti gli item ma al più
- *  `limit` in volo insieme. Preserva l'ordine dei risultati. Pura e testabile. */
+/** map with limited concurrency: runs `fn` over every item but at most `limit`
+ *  in flight at once. Preserves the order of the results. Pure and testable. */
 export async function mapPool<T, R>(
   items: T[],
   limit: number,
@@ -64,8 +64,8 @@ export async function mapPool<T, R>(
   return results;
 }
 
-/** True se un token ACL verrebbe inviato in chiaro: presente, su http://,
- *  verso un host non locale. Pura e testabile. */
+/** True when an ACL token would be sent in cleartext: present, over http://,
+ *  towards a non-local host. Pure and testable. */
 export function tokenSentInClear(address: string, tokenPresent: boolean): boolean {
   if (!tokenPresent) return false;
   let host: string;
@@ -106,7 +106,7 @@ export interface AllocSummary {
   nodeName: string;
   tasks: string[];
   restarts: number;
-  /** almeno un task è stato ucciso per OOM (dedotto dagli eventi). */
+  /** At least one task was OOM-killed (derived from the events). */
   oom: boolean;
 }
 
@@ -127,7 +127,7 @@ export interface DeploymentSummary {
   jobId: string;
   status: string;
   description: string;
-  // progresso aggregato sui task group (NOM-2)
+  // Aggregated progress over the task groups (NOM-2)
   desired: number;
   placed: number;
   healthy: number;
@@ -194,15 +194,15 @@ export class NomadClient {
         failed += s.Failed ?? 0;
         accounted += (s.Running ?? 0) + (s.Queued ?? 0) + (s.Starting ?? 0);
       }
-      // fallback: alloc contabilizzate dal summary (finche' non abbiamo il Count reale).
+      // Fallback: allocations accounted by the summary (until we have the real Count).
       return { id: j.ID, name: j.Name, type: j.Type, status: j.Status, running, failed, desired: accounted };
     });
 
-    // Desired autorevole = somma dei Count dei task group, dal job vero. Il summary
-    // non lo contiene, quindi un job running-ma-sotto-scala senza alloc in coda
-    // altrimenti risulterebbe "healthy". Solo per i job service (batch/system hanno
-    // semantiche di conteggio diverse); concorrenza limitata per non sommergere
-    // l'API su cluster con molti job; fallback al summary se la fetch fallisce.
+    // Authoritative desired = sum of the task groups' Count, from the real job. The
+    // summary does not carry it, so a running-but-under-scaled job with nothing queued
+    // would otherwise look "healthy". Service jobs only (batch/system count
+    // differently); limited concurrency so we do not swamp the API on clusters with
+    // many jobs; fall back to the summary if the fetch fails.
     const services = list.filter((s) => s.type === 'service');
     await mapPool(services, JOB_FETCH_CONCURRENCY, async (s) => {
       try {
@@ -212,7 +212,7 @@ export class NomadClient {
         const d = desiredFromJob(full);
         if (d > 0) s.desired = d;
       } catch {
-        /* mantieni il fallback dal summary */
+        /* keep the fallback from the summary */
       }
     });
     return list;
@@ -334,14 +334,14 @@ export class NomadClient {
     if (!res.ok) throw new Error(`Nomad API ${path}: HTTP ${res.status} ${truncate(await res.text())}`);
   }
 
-  // --- comandi mutativi (NOM-3): sempre dietro conferma esplicita nel glue ------
+  // --- mutating commands (NOM-3): always behind an explicit confirmation in the glue
 
-  /** Riavvia i task di un'allocazione. */
+  /** Restarts the tasks of an allocation. */
   async restartAllocation(allocId: string): Promise<void> {
     await this.postVoid(`client/allocation/${encodeURIComponent(allocId)}/restart`, {});
   }
 
-  /** Ferma (deregistra) un job. `purge` lo rimuove anche dallo stato. */
+  /** Stops (deregisters) a job. `purge` also removes it from the state. */
   async stopJob(id: string, purge = false): Promise<void> {
     const res = await fetch(this.url(`job/${encodeURIComponent(id)}`, purge ? { purge: 'true' } : {}), {
       method: 'DELETE',
@@ -351,7 +351,7 @@ export class NomadClient {
     if (!res.ok) throw new Error(`Nomad API stop job: HTTP ${res.status} ${truncate(await res.text())}`);
   }
 
-  /** Riavvia un job fermato: rilegge lo spec, azzera Stop e ri-registra. */
+  /** Restarts a stopped job: re-reads the spec, clears Stop and re-registers. */
   async startJob(id: string): Promise<void> {
     const job = await this.getJson<Record<string, unknown>>(`job/${encodeURIComponent(id)}`);
     (job as { Stop?: boolean }).Stop = false;

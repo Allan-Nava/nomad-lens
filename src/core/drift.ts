@@ -1,5 +1,5 @@
-// Drift fra cluster (milestone v0.4): estrazione dello spec di un job e confronto
-// (NOM-5) + inventario immagini (NOM-6). Puro — NIENTE import 'vscode'.
+// Cross-cluster drift (v0.4 milestone): extraction of a job's spec and comparison
+// (NOM-5) + image inventory (NOM-6). Pure — NO 'vscode' import.
 
 export interface RawTask {
   Name?: string;
@@ -31,7 +31,7 @@ export interface JobSpec {
   tasks: TaskSpec[];
 }
 
-/** Estrae dal job JSON i campi rilevanti per il drift. */
+/** Extracts the drift-relevant fields from the job JSON. */
 export function summarizeJob(job: RawJob): JobSpec {
   const tasks: TaskSpec[] = [];
   let count = 0;
@@ -50,7 +50,7 @@ export function summarizeJob(job: RawJob): JobSpec {
   return { id: job.ID ?? job.Name ?? '', count, tasks };
 }
 
-/** Tutte le immagini docker di un job (per l'inventario, NOM-6). */
+/** Every docker image of a job (for the inventory, NOM-6). */
 export function jobImages(job: RawJob): string[] {
   return [...new Set(summarizeJob(job).tasks.map((t) => t.image).filter(Boolean))];
 }
@@ -66,7 +66,7 @@ function row(field: string, a: string, b: string): DiffRow {
   return { field, a, b, same: a === b };
 }
 
-/** Confronta due spec (stesso job su due cluster): count, image, cpu, memory, env. */
+/** Compares two specs (same job on two clusters): count, image, cpu, memory, env. */
 export function compareJobSpecs(a: JobSpec, b: JobSpec): DiffRow[] {
   const rows: DiffRow[] = [row('count', String(a.count), String(b.count))];
   const keys = [...new Set([...a.tasks, ...b.tasks].map((t) => t.key))].sort();
@@ -91,9 +91,9 @@ export function renderComparison(jobId: string, labelA: string, labelB: string, 
   const lines = [
     `# Compare — ${jobId}`,
     '',
-    `${labelA} vs ${labelB} — ${diffs} ${diffs === 1 ? 'differenza' : 'differenze'}.`,
+    `${labelA} vs ${labelB} — ${diffs} ${diffs === 1 ? 'difference' : 'differences'}.`,
     '',
-    `| Campo | ${labelA} | ${labelB} | |`,
+    `| Field | ${labelA} | ${labelB} | |`,
     '|---|---|---|:-:|',
   ];
   for (const r of rows) lines.push(`| ${r.field} | ${r.a} | ${r.b} | ${r.same ? '' : '≠'} |`);
@@ -108,15 +108,15 @@ export interface ClusterInventory {
   jobs: { id: string; images: string[] }[];
 }
 
-/** Tabella job × cluster → immagini docker. `drift` marca i job con immagini
- *  diverse tra i cluster in cui esistono. */
+/** job × cluster table → docker images. `drift` marks the jobs whose images
+ *  differ across the clusters where they exist. */
 export function renderImageInventory(data: ClusterInventory[]): string {
   const clusters = data.map((d) => d.cluster);
   const jobIds = [...new Set(data.flatMap((d) => d.jobs.map((j) => j.id)))].sort();
   const lines: string[] = [
     '# Image inventory',
     '',
-    `${jobIds.length} job × ${clusters.length} cluster.`,
+    `${jobIds.length} job${jobIds.length === 1 ? '' : 's'} × ${clusters.length} cluster${clusters.length === 1 ? '' : 's'}.`,
     '',
     `| Job | ${clusters.join(' | ')} | drift |`,
     `|---|${clusters.map(() => '---').join('|')}|:-:|`,

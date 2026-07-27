@@ -1,5 +1,5 @@
-# Job di esempio per esercitare l'estensione col profilo demo: due allocation che
-# loggano di continuo (con qualche riga "error" per provare il grep cross-alloc).
+# Sample job to exercise the extension with the demo profile: two allocations that
+# log continuously (with a few "error" lines to try the cross-alloc grep).
 job "lens-demo" {
   datacenters = ["dc1"]
   type        = "service"
@@ -18,8 +18,8 @@ job "lens-demo" {
         ]
       }
 
-      # `cores` invece di `cpu` (MHz): in VM/Apple Silicon Nomad può riportare
-      # CpuShares=0, e una richiesta in MHz non verrebbe mai piazzata.
+      # `cores` instead of `cpu` (MHz): in VMs/Apple Silicon Nomad may report
+      # CpuShares=0, and a request in MHz would never be placed.
       resources {
         cores  = 1
         memory = 32

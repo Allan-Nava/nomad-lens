@@ -6,7 +6,7 @@ on:
     tags: ["v*"]
   pull_request:
 
-# Least privilege: di default sola lettura; solo il job che crea la release scrive.
+# Least privilege: read-only by default; only the job that creates the release writes.
 permissions:
   contents: read
 
@@ -34,7 +34,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write # crea/aggiorna la GitHub Release con il .vsix
+      contents: write # creates/updates the GitHub Release with the .vsix
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,8 +55,8 @@ jobs:
           files: "*.vsix"
 
   # Pubblicazione automatica sugli store. Richiede i secret VSCE_PAT
-  # (Marketplace, publisher deve combaciare con package.json) e, opzionale,
-  # OVSX_PAT (Open VSX). Se OVSX_PAT non e' configurato, quello step si salta.
+  # (Marketplace, the publisher must match package.json) and, optionally,
+  # OVSX_PAT (Open VSX). If OVSX_PAT is not configured, that step is skipped.
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: package

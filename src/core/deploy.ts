@@ -1,6 +1,6 @@
-// Logica pura per il deployment watch (NOM-2): aggregazione dei task group di un
-// deployment e derivazione di stato/progresso. NIENTE import 'vscode' — il poller
-// e la status bar vivono nel glue.
+// Pure logic for the deployment watch (NOM-2): aggregation of a deployment's task
+// groups and derivation of state/progress. NO 'vscode' import — the poller and the
+// status bar live in the glue.
 
 export interface DeployTaskGroup {
   DesiredTotal?: number;
@@ -18,7 +18,7 @@ export interface DeployAgg {
   canaries: number;
 }
 
-/** Somma i contatori dei task group di un deployment. */
+/** Sums the counters of a deployment's task groups. */
 export function aggregateDeployment(tgs: Record<string, DeployTaskGroup> | null | undefined): DeployAgg {
   const agg: DeployAgg = { desired: 0, placed: 0, healthy: 0, unhealthy: 0, canaries: 0 };
   for (const tg of Object.values(tgs ?? {})) {
@@ -33,8 +33,8 @@ export function aggregateDeployment(tgs: Record<string, DeployTaskGroup> | null 
 
 export interface DeployStatus {
   pct: number;
-  active: boolean; // in corso (running/pending/paused)
-  done: boolean; // stato terminale
+  active: boolean; // in progress (running/pending/paused)
+  done: boolean; // terminal state
   ok: boolean; // successful
   failed: boolean; // failed/cancelled
 }
@@ -49,8 +49,8 @@ export function deployStatus(status: string, agg: DeployAgg): DeployStatus {
 
 export type DeployNotice = { kind: 'success' | 'failure'; message: string } | null;
 
-/** Notifica da emettere quando lo stato di un deployment cambia rispetto al
- *  precedente giro di polling. Pura e testabile. */
+/** Notification to emit when a deployment's status changed since the previous
+ *  polling round. Pure and testable. */
 export function deployNotification(
   prevStatus: string | undefined,
   jobId: string,
@@ -58,19 +58,19 @@ export function deployNotification(
   description: string
 ): DeployNotice {
   if (!prevStatus || prevStatus === status) return null;
-  if (status === 'successful') return { kind: 'success', message: `Deploy ${jobId}: completato ✅` };
+  if (status === 'successful') return { kind: 'success', message: `Deploy ${jobId}: completed ✅` };
   if (status === 'failed' || status === 'cancelled') {
     return { kind: 'failure', message: `Deploy ${jobId}: ${status} — ${description}` };
   }
   return null;
 }
 
-/** True se un deployment running non progredisce da troppo tempo. Pura. */
+/** True when a running deployment has not progressed for too long. Pure. */
 export function isDeployStalled(status: string, elapsedMs: number, thresholdMs: number): boolean {
   return status === 'running' && elapsedMs > thresholdMs;
 }
 
-/** Testo per la status bar (sintassi `$(icon)` di VS Code, ma è solo una stringa). */
+/** Status bar text (VS Code's `$(icon)` syntax, but it is just a string). */
 export function deployStatusBar(jobId: string, status: string, agg: DeployAgg): string {
   const s = deployStatus(status, agg);
   const icon = s.ok ? '$(check)' : s.failed ? '$(error)' : '$(sync~spin)';

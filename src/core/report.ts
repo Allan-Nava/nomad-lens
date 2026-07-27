@@ -25,8 +25,8 @@ function icon(status: string): string {
   return STATUS_ICON[status] ?? '❔';
 }
 
-/** Segnali di allarme su un'allocation: kill da OOM e restart loop oltre soglia.
- *  Puro e testabile — cuore del detector NOM-1. */
+/** Warning signals on an allocation: OOM kill and restart loop beyond a threshold.
+ *  Pure and testable — the heart of the NOM-1 detector. */
 export function allocWarnings(a: { restarts: number; oom: boolean }, restartThreshold = 3): string[] {
   const w: string[] = [];
   if (a.oom) w.push('OOM');
@@ -47,40 +47,40 @@ export function renderSnapshot(
   nodes: NodeSummary[],
   deployments: DeploymentSummary[]
 ): string {
-  const now = new Date().toISOString();
+  const generatedAt = new Date().toISOString();
   const problems = jobs.filter((j) => ['degraded', 'pending', 'failed'].includes(jobHealth(j)));
-  // Un nodo ineligible non ospita nuove alloc: e' un problema da report mattutino
-  // esattamente come un drain (NOM-17), quindi vale la stessa definizione del tree.
+  // An ineligible node hosts no new allocations: a morning-report problem exactly
+  // like a drain (NOM-17), so it uses the same definition as the tree.
   const badNodes = nodes.filter(nodeNeedsAttention);
   const badDeploys = deployments.filter((d) => !['successful', 'cancelled'].includes(d.status));
 
   const lines: string[] = [
     `# Nomad snapshot — ${cluster}`,
     '',
-    `Generato: ${now}`,
+    `Generated: ${generatedAt}`,
     '',
     '```',
-    `jobs totali : ${jobs.length}  (problemi: ${problems.length})`,
-    `nodi        : ${nodes.length}  (non-ready/drain: ${badNodes.length})`,
-    `deployments : ${deployments.length} attivi/recenti (non healthy: ${badDeploys.length})`,
+    `total jobs  : ${jobs.length}  (problems: ${problems.length})`,
+    `nodes       : ${nodes.length}  (not ready / drain / ineligible: ${badNodes.length})`,
+    `deployments : ${deployments.length} active or recent (not healthy: ${badDeploys.length})`,
     '```',
     '',
-    '## ⚠ Da guardare',
+    '## ⚠ Needs attention',
     '',
   ];
 
   if (!problems.length && !badNodes.length && !badDeploys.length) {
-    lines.push('Niente — tutto verde. ✅', '');
+    lines.push('Nothing — all green. ✅', '');
   }
   if (problems.length) {
-    lines.push('| Job | Stato | Alloc running/desired | Failed |', '|---|---|---|---|');
+    lines.push('| Job | Status | Alloc running/desired | Failed |', '|---|---|---|---|');
     for (const j of problems) {
       lines.push(`| ${j.id} | ${icon(jobHealth(j))} ${jobHealth(j)} | ${j.running}/${j.desired} | ${j.failed} |`);
     }
     lines.push('');
   }
   if (badNodes.length) {
-    lines.push('### Nodi');
+    lines.push('### Nodes');
     for (const n of badNodes) lines.push(`- 🔴 ${n.name}: ${nodeStateLabel(n)}`);
     lines.push('');
   }
@@ -90,7 +90,7 @@ export function renderSnapshot(
     lines.push('');
   }
 
-  lines.push('## Tutti i job', '', '| Job | Tipo | Stato | Alloc |', '|---|---|---|---|');
+  lines.push('## All jobs', '', '| Job | Type | Status | Alloc |', '|---|---|---|---|');
   for (const j of [...jobs].sort((a, b) => a.id.localeCompare(b.id))) {
     lines.push(`| ${j.id} | ${j.type} | ${icon(jobHealth(j))} ${jobHealth(j)} | ${j.running}/${j.desired} |`);
   }
@@ -134,8 +134,8 @@ export function filterLabel(filter: JobFilter, shown: number, total: number): st
   return bits.join(' · ');
 }
 
-/** Nome file per lo snapshot su disco (NOM-7): `nomad-snapshot-<cluster>-<data>.md`.
- *  `date` è una stringa già formattata (es. "2026-07-24"). Puro e testabile. */
+/** File name for the snapshot on disk (NOM-7): `nomad-snapshot-<cluster>-<date>.md`.
+ *  `date` is an already formatted string (e.g. "2026-07-24"). Pure and testable. */
 export function snapshotFileName(cluster: string, date: string): string {
   const slug = cluster.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'cluster';
   return `nomad-snapshot-${slug}-${date}.md`;
@@ -177,13 +177,13 @@ export function renderPlanDiff(plan: PlanResult): string {
   const out: string[] = [];
   const diff: JobDiff | undefined = plan.Diff;
   if (!diff || diff.Type === 'None') {
-    out.push('Nessuna differenza: il job spec coincide con quello running. ✅');
+    out.push('No differences: the job spec matches the running one. ✅');
   } else {
     out.push(`Job diff (${diff.Type}):`, '');
     out.push(...renderJobDiffLines(diff));
   }
   if (plan.FailedTGAllocs && Object.keys(plan.FailedTGAllocs).length) {
-    out.push('', `⚠ Placement fallito per: ${Object.keys(plan.FailedTGAllocs).join(', ')}`);
+    out.push('', `⚠ Placement failed for: ${Object.keys(plan.FailedTGAllocs).join(', ')}`);
   }
   if (plan.Warnings) out.push('', `⚠ Warnings: ${plan.Warnings}`);
   return out.join('\n');
@@ -223,11 +223,11 @@ export function buildIncidentBundle(input: IncidentInput): IncidentBundle {
     '',
     `- **Cluster**: ${input.cluster}`,
     `- **Job**: ${alloc.jobId} (task group \`${alloc.taskGroup}\`)`,
-    `- **Allocation**: \`${alloc.id}\` — stato client: **${alloc.clientStatus}**, restarts: ${alloc.restarts}`,
-    `- **Nodo**: ${alloc.nodeName}`,
-    `- **Generato**: ${new Date().toISOString()}`,
+    `- **Allocation**: \`${alloc.id}\` — client status: **${alloc.clientStatus}**, restarts: ${alloc.restarts}`,
+    `- **Node**: ${alloc.nodeName}`,
+    `- **Generated**: ${new Date().toISOString()}`,
     '',
-    '## Timeline eventi task',
+    '## Task event timeline',
     '',
   ];
 
@@ -244,7 +244,7 @@ export function buildIncidentBundle(input: IncidentInput): IncidentBundle {
     lines.push('');
   }
 
-  lines.push('## Log allegati', '');
+  lines.push('## Attached logs', '');
   const files: { name: string; content: string }[] = [];
   for (const [task, log] of Object.entries(input.logs)) {
     for (const type of ['stdout', 'stderr'] as const) {
@@ -253,7 +253,7 @@ export function buildIncidentBundle(input: IncidentInput): IncidentBundle {
       lines.push(`- [\`${name}\`](./${name})`);
     }
   }
-  lines.push('', '## Analisi', '', '_(da compilare: causa, impatto, remediation)_', '');
+  lines.push('', '## Analysis', '', '_(to fill in: cause, impact, remediation)_', '');
 
   return { dirName, markdown: lines.join('\n'), files };
 }

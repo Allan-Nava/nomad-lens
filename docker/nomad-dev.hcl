@@ -1,5 +1,5 @@
-# Config per il Nomad dev del profilo demo: abilita il driver raw_exec così il
-# job di esempio può girare senza Docker-in-Docker.
+# Config for the demo profile's dev Nomad: enables the raw_exec driver so the
+# sample job can run without Docker-in-Docker.
 plugin "raw_exec" {
   config {
     enabled = true

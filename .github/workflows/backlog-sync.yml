@@ -1,7 +1,7 @@
 name: Backlog Sync
 
 # Rende GitHub (milestone + issue) un mirror di BACKLOG.md.
-# Sorgente unica: il file. Vedi scripts/backlog-sync.mjs.
+# Single source of truth: the file. See scripts/backlog-sync.mjs.
 
 on:
   push:
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Solo parsing, nessuna scrittura"
+        description: "Parse only, no writes"
         type: boolean
         default: false
 

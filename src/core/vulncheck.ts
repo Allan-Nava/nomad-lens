@@ -1,9 +1,9 @@
-// Logica pura (NIENTE import 'vscode') per l'auto-fix di un default rotto della
-// Go extension: `go.diagnostic.vulncheck` ha default "Prompt", ma il language
-// server gopls accetta solo "Imports"/"Off" e lo rifiuta con
+// Pure logic (NO 'vscode' import) for auto-fixing a broken default of the Go
+// extension: `go.diagnostic.vulncheck` defaults to "Prompt", but the gopls language
+// server only accepts "Imports"/"Off" and rejects it with
 //   Invalid settings: setting option "vulncheck": invalid option "Prompt" for enum
-// Qui decidiamo SE e COME correggere; l'I/O (leggere/scrivere settings, notifiche)
-// vive nel glue in extension.ts.
+// Here we decide WHETHER and HOW to fix it; the I/O (reading/writing settings,
+// notifications) lives in the glue in extension.ts.
 
 export const VULNCHECK_SETTING = 'go.diagnostic.vulncheck';
 export const BROKEN_VALUE = 'Prompt';
@@ -11,15 +11,15 @@ export type VulncheckFixTarget = 'Off' | 'Imports';
 export type VulncheckScope = 'global' | 'workspace';
 
 export interface VulncheckState {
-  /** la Go extension (`golang.go`) e' installata? Altrimenti la setting non esiste. */
+  /** Is the Go extension (`golang.go`) installed? Otherwise the setting does not exist. */
   goExtensionInstalled: boolean;
-  /** l'utente ha abilitato l'auto-fix (`nomadLens.autoFixGoVulncheck`)? */
+  /** Has the user enabled the auto-fix (`nomadLens.autoFixGoVulncheck`)? */
   autoFixEnabled: boolean;
-  /** valore desiderato per il fix (`nomadLens.goVulncheckFixValue`). */
+  /** Value the fix should write (`nomadLens.goVulncheckFixValue`). */
   fixTarget: VulncheckFixTarget;
-  /** valore effettivo che gopls riceverebbe (config.get, include il default). */
+  /** Effective value gopls would receive (config.get, includes the default). */
   effectiveValue?: string;
-  /** valore impostato esplicitamente a livello workspace (inspect().workspaceValue). */
+  /** Value set explicitly at workspace level (inspect().workspaceValue). */
   workspaceValue?: string;
 }
 
@@ -28,17 +28,17 @@ export type VulncheckDecision =
   | { action: 'fix'; from: string; to: VulncheckFixTarget; scope: VulncheckScope };
 
 /**
- * Decide se correggere `go.diagnostic.vulncheck`. Si interviene SOLO quando il
- * valore effettivo e' esattamente "Prompt" (quello che gopls rifiuta): qualsiasi
- * altro valore, incluso un "Off"/"Imports" gia' scelto, viene lasciato stare.
- * Se il "Prompt" arriva da un override di workspace lo si corregge nello stesso
- * scope, altrimenti (default implicito) a livello globale.
+ * Decides whether to fix `go.diagnostic.vulncheck`. We only step in when the
+ * effective value is exactly "Prompt" (the one gopls rejects): any other value,
+ * including an "Off"/"Imports" the user already chose, is left alone.
+ * If the "Prompt" comes from a workspace override we fix it in that same scope,
+ * otherwise (implicit default) globally.
  */
 export function decideVulncheckFix(s: VulncheckState): VulncheckDecision {
-  if (!s.autoFixEnabled) return { action: 'none', reason: 'auto-fix disabilitato' };
-  if (!s.goExtensionInstalled) return { action: 'none', reason: 'Go extension non installata' };
+  if (!s.autoFixEnabled) return { action: 'none', reason: 'auto-fix disabled' };
+  if (!s.goExtensionInstalled) return { action: 'none', reason: 'Go extension not installed' };
   if (s.effectiveValue !== BROKEN_VALUE) {
-    return { action: 'none', reason: `valore gia' valido (${s.effectiveValue ?? 'n/d'})` };
+    return { action: 'none', reason: `value already valid (${s.effectiveValue ?? 'n/a'})` };
   }
   const scope: VulncheckScope = s.workspaceValue === BROKEN_VALUE ? 'workspace' : 'global';
   return { action: 'fix', from: BROKEN_VALUE, to: s.fixTarget, scope };

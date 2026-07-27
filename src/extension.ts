@@ -40,10 +40,10 @@ import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
 import { parseVersions, versionPickItem, renderVersionHistory, renderVersionDiff } from './core/versions';
 import { latestPlacementFailures, placementSummary, renderPlacementReport } from './core/placement';
 import { parseAllocStats, renderResourceUsage, taskRequests, TaskUsage } from './core/resources';
+import { deployStatus, deployStatusBar, deployNotification, isDeployStalled } from './core/deploy';
 
 /** Max placement checks in flight while marking stuck jobs in the tree. */
 const PLACEMENT_CONCURRENCY = 4;
-import { deployStatus, deployStatusBar, deployNotification, isDeployStalled } from './core/deploy';
 
 type Node =
   | { kind: 'section'; label: 'Jobs' | 'Nodes' | 'Deployments' }
@@ -185,7 +185,7 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
 
   async getChildren(node?: Node): Promise<Node[]> {
     const client = this.getClient();
-    if (!client) return [{ kind: 'leaf', label: 'Nessun cluster configurato (nomadLens.clusters)', iconId: 'gear' }];
+    if (!client) return [{ kind: 'leaf', label: 'No cluster configured (nomadLens.clusters)', iconId: 'gear' }];
     try {
       if (!node) {
         return [
@@ -217,7 +217,7 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
       }
       if (node.kind === 'section' && node.label === 'Deployments') {
         const deps = await client.deployments();
-        if (!deps.length) return [{ kind: 'leaf', label: '(nessun deployment)', iconId: 'dash' }];
+        if (!deps.length) return [{ kind: 'leaf', label: '(no deployment)', iconId: 'dash' }];
         return deps.map((d) => ({
           kind: 'leaf' as const,
           label: `${d.jobId} — ${d.status}${d.description ? ` · ${d.description}` : ''}`,
@@ -235,7 +235,7 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
       }
       return [];
     } catch (err) {
-      return [{ kind: 'leaf', label: `errore: ${err}`, iconId: 'error' }];
+      return [{ kind: 'leaf', label: `error: ${err}`, iconId: 'error' }];
     }
   }
 }
@@ -254,14 +254,14 @@ export function activate(context: vscode.ExtensionContext): void {
     status.show();
   };
 
-  // Avvisa (una volta per cluster) se un token ACL verrebbe inviato in chiaro su http://.
+  // Warn (once per cluster) if an ACL token would be sent in cleartext over http://.
   const warnedInsecure = new Set<string>();
   const warnIfInsecureToken = (cfg: ClusterConfig) => {
     const tokenPresent = !!(cfg.tokenEnv && process.env[cfg.tokenEnv]);
     if (tokenSentInClear(cfg.address, tokenPresent) && !warnedInsecure.has(cfg.name)) {
       warnedInsecure.add(cfg.name);
       void vscode.window.showWarningMessage(
-        `Nomad Lens: il token ACL del cluster "${cfg.name}" verrebbe inviato in chiaro su ${cfg.address}. Usa https://.`
+        `Nomad Lens: the ACL token of cluster "${cfg.name}" would be sent in cleartext over ${cfg.address}. Use https://.`
       );
     }
   };
@@ -281,7 +281,7 @@ export function activate(context: vscode.ExtensionContext): void {
     logStreams.clear();
   };
 
-  // --- Deployment watch (NOM-2): progress in status bar + notifiche ------------
+  // --- Deployment watch (NOM-2): progress in the status bar + notifications ----
   const deployBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 87);
   context.subscriptions.push(deployBar);
   const deployState = new Map<string, { status: string; healthy: number; since: number; warnedStall: boolean }>();
@@ -296,7 +296,7 @@ export function activate(context: vscode.ExtensionContext): void {
     try {
       deps = await client.deployments();
     } catch {
-      return; // transitorio: riprova al prossimo tick
+      return; // transient: retry on the next tick
     }
     const now = Date.now();
     for (const d of deps) {
@@ -324,7 +324,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!st.warnedStall && isDeployStalled(active.status, now - st.since, stallMs)) {
       st.warnedStall = true;
       void vscode.window.showWarningMessage(
-        `Deploy ${active.jobId} sembra bloccato: healthy ${active.healthy}/${active.desired} da ~${Math.round((now - st.since) / 1000)}s`
+        `Deploy ${active.jobId} looks stalled: healthy ${active.healthy}/${active.desired} for ~${Math.round((now - st.since) / 1000)}s`
       );
     }
   };
@@ -365,7 +365,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const all = clusters();
       const picked = await vscode.window.showQuickPick(
         all.map((c) => ({ label: c.name, description: c.address, c })),
-        { placeHolder: 'Cluster Nomad' }
+        { placeHolder: 'Nomad cluster' }
       );
       if (!picked) return;
       stopAllStreams();
@@ -381,7 +381,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('nomadLens.followLogs', async (node?: { alloc: AllocSummary; task: string }) => {
       if (!client || !node) return;
       const type = (await vscode.window.showQuickPick(['stdout', 'stderr'], {
-        placeHolder: `Log di ${node.task} (alloc ${node.alloc.id.slice(0, 8)})`,
+        placeHolder: `Logs of ${node.task} (alloc ${node.alloc.id.slice(0, 8)})`,
       })) as 'stdout' | 'stderr' | undefined;
       if (!type) return;
       const key = `${node.alloc.id}/${node.task}/${type}`;
@@ -405,7 +405,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
 
     vscode.commands.registerCommand('nomadLens.stopLogs', async () => {
-      const key = await vscode.window.showQuickPick([...logStreams.keys()], { placeHolder: 'Stream da fermare' });
+      const key = await vscode.window.showQuickPick([...logStreams.keys()], { placeHolder: 'Stream to stop' });
       if (!key) return;
       logStreams.get(key)?.controller.abort();
       logStreams.delete(key);
@@ -415,7 +415,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!client) return;
       const doc = vscode.window.activeTextEditor?.document;
       if (!doc || !/\.(nomad|hcl)$/.test(doc.fileName)) {
-        void vscode.window.showWarningMessage('Apri un job spec .nomad/.hcl prima di lanciare il plan.');
+        void vscode.window.showWarningMessage('Open a .nomad/.hcl job spec before running the plan.');
         return;
       }
       try {
@@ -430,7 +430,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const planDoc = await vscode.workspace.openTextDocument({ content: text, language: 'diff' });
         await vscode.window.showTextDocument(planDoc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
       } catch (err) {
-        void vscode.window.showErrorMessage(`nomad plan fallito — ${err}`);
+        void vscode.window.showErrorMessage(`nomad plan failed — ${err}`);
       }
     }),
 
@@ -438,7 +438,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!client || !node) return;
       const folder = vscode.workspace.workspaceFolders?.[0];
       if (!folder) {
-        void vscode.window.showWarningMessage('Apri una cartella di lavoro dove salvare il bundle.');
+        void vscode.window.showWarningMessage('Open a working folder to save the bundle into.');
         return;
       }
       try {
@@ -461,7 +461,7 @@ export function activate(context: vscode.ExtensionContext): void {
         await vscode.window.showTextDocument(reportDoc);
         void vscode.window.showInformationMessage(`Incident bundle: incidents/${bundle.dirName}/`);
       } catch (err) {
-        void vscode.window.showErrorMessage(`Incident bundle fallito — ${err}`);
+        void vscode.window.showErrorMessage(`Incident bundle failed — ${err}`);
       }
     }),
 
@@ -473,7 +473,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const doc = await vscode.workspace.openTextDocument({ content: md, language: 'markdown' });
         await vscode.window.showTextDocument(doc, { preview: true });
       } catch (err) {
-        void vscode.window.showErrorMessage(`Snapshot fallito — ${err}`);
+        void vscode.window.showErrorMessage(`Snapshot failed — ${err}`);
       }
     }),
 
@@ -482,10 +482,10 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!(await confirmAction('restartAlloc', node.alloc.id.slice(0, 8)))) return;
       try {
         await client.restartAllocation(node.alloc.id);
-        void vscode.window.showInformationMessage(`Allocation ${node.alloc.id.slice(0, 8)} riavviata.`);
+        void vscode.window.showInformationMessage(`Allocation ${node.alloc.id.slice(0, 8)} restarted.`);
         tree.refresh();
       } catch (err) {
-        void vscode.window.showErrorMessage(`Restart allocation fallito — ${err}`);
+        void vscode.window.showErrorMessage(`Restart allocation failed — ${err}`);
       }
     }),
 
@@ -494,10 +494,10 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!(await confirmAction('stopJob', node.job.id))) return;
       try {
         await client.stopJob(node.job.id);
-        void vscode.window.showInformationMessage(`Job ${node.job.id} fermato.`);
+        void vscode.window.showInformationMessage(`Job ${node.job.id} stopped.`);
         tree.refresh();
       } catch (err) {
-        void vscode.window.showErrorMessage(`Stop job fallito — ${err}`);
+        void vscode.window.showErrorMessage(`Stop job failed — ${err}`);
       }
     }),
 
@@ -506,10 +506,10 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!(await confirmAction('startJob', node.job.id))) return;
       try {
         await client.startJob(node.job.id);
-        void vscode.window.showInformationMessage(`Job ${node.job.id} riavviato.`);
+        void vscode.window.showInformationMessage(`Job ${node.job.id} started.`);
         tree.refresh();
       } catch (err) {
-        void vscode.window.showErrorMessage(`Start job fallito — ${err}`);
+        void vscode.window.showErrorMessage(`Start job failed — ${err}`);
       }
     }),
 
@@ -688,8 +688,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('nomadLens.grepJob', async (node?: { job: JobSummary }) => {
       if (!client || !node) return;
       const query = await vscode.window.showInputBox({
-        prompt: `Cerca nei log di tutte le allocation di ${node.job.id}`,
-        placeHolder: 'stringa da cercare (case-insensitive)',
+        prompt: `Search the logs of every allocation of ${node.job.id}`,
+        placeHolder: 'string to search for (case-insensitive)',
       });
       if (!query) return;
       const active = client;
@@ -701,7 +701,7 @@ export function activate(context: vscode.ExtensionContext): void {
           )
         );
         if (!targets.length) {
-          void vscode.window.showInformationMessage(`Nessuna allocation con log per ${node.job.id}.`);
+          void vscode.window.showInformationMessage(`No allocation with logs for ${node.job.id}.`);
           return;
         }
         const sources: LogSource[] = await mapPool(targets, 8, async (t) => ({
@@ -712,24 +712,24 @@ export function activate(context: vscode.ExtensionContext): void {
         }));
         const matches = grepLogs(sources, query);
         if (!matches.length) {
-          void vscode.window.showInformationMessage(`Nessun match per "${query}" in ${node.job.id}.`);
+          void vscode.window.showInformationMessage(`No match for "${query}" in ${node.job.id}.`);
           return;
         }
         const md = renderGrepReport(node.job.id, query, matches);
         const doc = await vscode.workspace.openTextDocument({ content: md, language: 'markdown' });
         await vscode.window.showTextDocument(doc, { preview: true });
       } catch (err) {
-        void vscode.window.showErrorMessage(`Grep cross-alloc fallito — ${err}`);
+        void vscode.window.showErrorMessage(`Cross-alloc grep failed — ${err}`);
       }
     }),
 
     vscode.commands.registerCommand('nomadLens.compareClusters', async (node?: { job: JobSummary }) => {
       const all = clusters();
       if (all.length < 2) {
-        void vscode.window.showWarningMessage('Servono almeno due cluster in nomadLens.clusters.');
+        void vscode.window.showWarningMessage('At least two clusters are needed in nomadLens.clusters.');
         return;
       }
-      const jobId = node?.job.id ?? (await vscode.window.showInputBox({ prompt: 'Job id da confrontare tra due cluster' }));
+      const jobId = node?.job.id ?? (await vscode.window.showInputBox({ prompt: 'Job id to compare across two clusters' }));
       if (!jobId) return;
       const pickA = await vscode.window.showQuickPick(
         all.map((c) => ({ label: c.name, description: c.address, c })),
@@ -748,14 +748,14 @@ export function activate(context: vscode.ExtensionContext): void {
         const doc = await vscode.workspace.openTextDocument({ content: md, language: 'markdown' });
         await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
       } catch (err) {
-        void vscode.window.showErrorMessage(`Compare clusters fallito — ${err}`);
+        void vscode.window.showErrorMessage(`Compare clusters failed — ${err}`);
       }
     }),
 
     vscode.commands.registerCommand('nomadLens.imageInventory', async () => {
       const all = clusters();
       if (!all.length) {
-        void vscode.window.showWarningMessage('Nessun cluster configurato (nomadLens.clusters).');
+        void vscode.window.showWarningMessage('No cluster configured (nomadLens.clusters).');
         return;
       }
       try {
@@ -781,7 +781,7 @@ export function activate(context: vscode.ExtensionContext): void {
         });
         await vscode.window.showTextDocument(doc, { preview: true });
       } catch (err) {
-        void vscode.window.showErrorMessage(`Image inventory fallito — ${err}`);
+        void vscode.window.showErrorMessage(`Image inventory failed — ${err}`);
       }
     }),
 
@@ -794,7 +794,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!target) {
         const folder = vscode.workspace.workspaceFolders?.[0];
         if (!folder) {
-          void vscode.window.showWarningMessage('Imposta nomadLens.snapshotPath (o apri una cartella di lavoro).');
+          void vscode.window.showWarningMessage('Set nomadLens.snapshotPath (or open a working folder).');
           return;
         }
         target = folder.uri.fsPath;
@@ -806,12 +806,12 @@ export function activate(context: vscode.ExtensionContext): void {
         const file = target.endsWith('.md') ? target : path.join(target, snapshotFileName(active.clusterName, date));
         await fs.promises.mkdir(path.dirname(file), { recursive: true });
         await fs.promises.writeFile(file, md, 'utf8');
-        const pick = await vscode.window.showInformationMessage(`Snapshot salvato: ${file}`, 'Apri');
-        if (pick === 'Apri') {
+        const pick = await vscode.window.showInformationMessage(`Snapshot saved: ${file}`, 'Open');
+        if (pick === 'Open') {
           await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file));
         }
       } catch (err) {
-        void vscode.window.showErrorMessage(`Snapshot su file fallito — ${err}`);
+        void vscode.window.showErrorMessage(`Snapshot to file failed — ${err}`);
       }
     })
   );
@@ -821,9 +821,9 @@ export function activate(context: vscode.ExtensionContext): void {
   void maybeFixGoVulncheck();
 }
 
-// All'attivazione, corregge il default rotto `go.diagnostic.vulncheck: "Prompt"`
-// della Go extension (gopls lo rifiuta). Trasparente e reversibile; la decisione
-// e' pura in core/vulncheck.ts, qui c'e' solo l'I/O sulle settings.
+// On activation, fixes the Go extension's broken `go.diagnostic.vulncheck: "Prompt"`
+// default (gopls rejects it). Transparent and reversible; the decision is pure in
+// core/vulncheck.ts, here there is only the settings I/O.
 async function maybeFixGoVulncheck(): Promise<void> {
   const nl = vscode.workspace.getConfiguration('nomadLens');
   const cfg = vscode.workspace.getConfiguration();
@@ -846,40 +846,40 @@ async function maybeFixGoVulncheck(): Promise<void> {
   try {
     await cfg.update(VULNCHECK_SETTING, decision.to, target);
   } catch (err) {
-    void vscode.window.showWarningMessage(`Nomad Lens: impossibile correggere ${VULNCHECK_SETTING} — ${err}`);
+    void vscode.window.showWarningMessage(`Nomad Lens: could not fix ${VULNCHECK_SETTING} — ${err}`);
     return;
   }
 
   const choice = await vscode.window.showInformationMessage(
-    `Nomad Lens: corretto ${VULNCHECK_SETTING} ("${decision.from}" → "${decision.to}"): gopls rifiuta "${decision.from}".`,
-    'Annulla',
-    'Non correggere più'
+    `Nomad Lens: fixed ${VULNCHECK_SETTING} ("${decision.from}" → "${decision.to}"): gopls rejects "${decision.from}".`,
+    'Undo',
+    'Stop fixing this'
   );
-  if (choice === 'Annulla') {
+  if (choice === 'Undo') {
     await cfg.update(VULNCHECK_SETTING, undefined, target);
-  } else if (choice === 'Non correggere più') {
+  } else if (choice === 'Stop fixing this') {
     await nl.update('autoFixGoVulncheck', false, vscode.ConfigurationTarget.Global);
   }
 }
 
-// Conferma dei comandi mutativi (NOM-3). Distruttivi → doppia conferma; stop job
-// → conferma digitata. Mai un bottone di default (modali + input box esatto).
+// Confirmation of the mutating commands (NOM-3). Destructive → double confirmation;
+// stop job → typed confirmation. Never a default button (modals + exact input box).
 async function confirmAction(kind: NomadActionKind, target: string): Promise<boolean> {
   const m = ACTIONS[kind];
   const first = await vscode.window.showWarningMessage(confirmMessage(kind, target), { modal: true }, m.verb);
   if (first !== m.verb) return false;
   if (m.requireType) {
     const typed = await vscode.window.showInputBox({
-      prompt: `Digita "${target}" per confermare`,
+      prompt: `Type "${target}" to confirm`,
       placeHolder: target,
-      validateInput: (v) => (v === target ? undefined : 'Non combacia'),
+      validateInput: (v) => (v === target ? undefined : 'Does not match'),
     });
     return typed === target;
   }
   if (m.destructive) {
-    const ok = 'Sì, procedi';
+    const ok = 'Yes, proceed';
     const second = await vscode.window.showWarningMessage(
-      `Confermi definitivamente? ${confirmMessage(kind, target)}`,
+      `Confirm for good? ${confirmMessage(kind, target)}`,
       { modal: true },
       ok
     );

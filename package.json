@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -282,7 +282,7 @@
         "nomadLens.autoFixGoVulncheck": {
           "type": "boolean",
           "default": true,
-          "description": "All'attivazione, correggi il default rotto della Go extension go.diagnostic.vulncheck=\"Prompt\" (gopls lo rifiuta) impostandolo a un valore valido. Disattivabile."
+          "description": "On activation, fix the Go extension's broken go.diagnostic.vulncheck=\"Prompt\" default (gopls rejects it) by setting a valid value. Can be turned off."
         },
         "nomadLens.goVulncheckFixValue": {
           "type": "string",
@@ -291,29 +291,29 @@
             "Imports"
           ],
           "default": "Off",
-          "description": "Valore usato dall'auto-fix di go.diagnostic.vulncheck: \"Off\" (silenzioso) oppure \"Imports\" (scansiona le dipendenze con govulncheck)."
+          "description": "Value used by the go.diagnostic.vulncheck auto-fix: \"Off\" (silent) or \"Imports\" (scan dependencies with govulncheck)."
         },
         "nomadLens.deploymentWatch": {
           "type": "boolean",
           "default": true,
-          "description": "Osserva i deployment attivi: progress nella status bar + notifica su successo/fallimento/blocco."
+          "description": "Watch active deployments: progress in the status bar + notification on success/failure/stall."
         },
         "nomadLens.deploymentPollSeconds": {
           "type": "number",
           "default": 5,
           "minimum": 2,
-          "description": "Intervallo di polling dei deployment (secondi)."
+          "description": "Deployment polling interval (seconds)."
         },
         "nomadLens.deploymentStallSeconds": {
           "type": "number",
           "default": 90,
           "minimum": 10,
-          "description": "Se un deployment running non progredisce (healthy invariato) per questo tempo, viene segnalato come bloccato."
+          "description": "If a running deployment does not progress (healthy unchanged) for this long, it is reported as stalled."
         },
         "nomadLens.snapshotPath": {
           "type": "string",
           "default": "",
-          "description": "Percorso dove salvare lo snapshot (comando Save Cluster Snapshot to File). Se è una cartella (o vuoto → cartella di lavoro) il file è nomad-snapshot-<cluster>-<data>.md; se termina in .md è il file esatto. Supporta ~."
+          "description": "Path where the snapshot is written (Save Cluster Snapshot to File command). If it is a folder (or empty → the working folder) the file is nomad-snapshot-<cluster>-<date>.md; if it ends in .md it is the exact file. Supports ~."
         }
       }
     }

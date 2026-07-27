@@ -60,8 +60,8 @@ import { grepLogs, renderGrepReport, LogSource } from '../src/core/grep';
 import { summarizeJob, compareJobSpecs, renderComparison, jobImages, renderImageInventory, RawJob } from '../src/core/drift';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 
-// Spec di riferimento usato dai test di integrazione. A livello di modulo cosi'
-// da poterlo lintare anche quando `nomad` non c'e' (integrazione skippata).
+// Reference spec used by the integration tests. At module level so it can be
+// linted even when `nomad` is absent (integration skipped).
 const HCL = `
 job "lens-demo" {
   datacenters = ["dc1"]
@@ -82,8 +82,8 @@ job "lens-demo" {
 }
 `;
 
-// Job raw_exec: gira davvero anche senza Docker (per testare le azioni mutative
-// su un'alloc running). `cores` invece di `cpu`: in VM CpuShares può essere 0.
+// raw_exec job: actually runs without Docker (to test the mutating actions on a
+// running alloc). `cores` instead of `cpu`: in VMs CpuShares can be 0.
 const RAW_HCL = `
 job "lens-run" {
   datacenters = ["dc1"]
@@ -105,8 +105,8 @@ job "lens-run" {
 }
 `;
 
-// Job che NON puo' essere piazzato: constraint su un kernel inesistente. Serve a
-// verificare i placement diagnostics (NOM-15) contro lo scheduler vero.
+// Job that CANNOT be placed: a constraint on a non-existent kernel. Used to verify
+// the placement diagnostics (NOM-15) against the real scheduler.
 const UNPLACEABLE_HCL = `
 job "lens-noplace" {
   datacenters = ["dc1"]
@@ -170,7 +170,7 @@ async function main(): Promise<void> {
           id: 'd1',
           jobId: 'packager',
           status: 'running',
-          description: 'canary in corso',
+          description: 'canary in progress',
           desired: 3,
           placed: 2,
           healthy: 1,
@@ -179,11 +179,11 @@ async function main(): Promise<void> {
         },
       ]
     );
-    const problemsSection = md.split('## ⚠ Da guardare')[1].split('## Tutti i job')[0];
+    const problemsSection = md.split('## ⚠ Needs attention')[1].split('## All jobs')[0];
     assert.ok(problemsSection.includes('| packager |'), 'packager should be flagged');
     assert.ok(!problemsSection.includes('| transcoder |'), 'transcoder healthy, not in problems');
     assert.ok(md.includes('worker-02'), 'drain node listed');
-    assert.ok(md.includes('canary in corso'));
+    assert.ok(md.includes('canary in progress'));
   });
 
   await test('plan diff: rendered fields and no-change case', () => {
@@ -220,7 +220,7 @@ async function main(): Promise<void> {
     const text = renderPlanDiff(plan);
     assert.ok(text.includes('Count'), 'count change shown');
     assert.ok(text.includes('nginx:1.27'), 'image change shown');
-    assert.ok(renderPlanDiff({}).includes('Nessuna differenza'));
+    assert.ok(renderPlanDiff({}).includes('No differences'));
   });
 
   await test('incident bundle: markdown + log files', () => {
@@ -258,7 +258,7 @@ async function main(): Promise<void> {
     assert.ok(bundle.files.some((f) => f.name === 'app.stderr.log' && f.content === 'boom\n'));
   });
 
-  await test('taskEventIsOom: match stretto (no falsi da "zoom"/"room")', () => {
+  await test('taskEventIsOom: strict match (no false hits from "zoom"/"room")', () => {
     assert.strictEqual(taskEventIsOom({ Details: { oom_killed: 'true' } }), true);
     assert.strictEqual(taskEventIsOom({ DisplayMessage: 'Out of memory (OOM) killed' }), true);
     assert.strictEqual(taskEventIsOom({ DisplayMessage: 'OOMKilled' }), true);
@@ -267,7 +267,7 @@ async function main(): Promise<void> {
     assert.strictEqual(taskEventIsOom({}), false);
   });
 
-  await test('mapPool: esegue tutto, in ordine, senza superare il limite di concorrenza', async () => {
+  await test('mapPool: runs everything, in order, without exceeding the concurrency limit', async () => {
     let inFlight = 0;
     let maxInFlight = 0;
     const out = await mapPool([1, 2, 3, 4, 5, 6, 7], 3, async (n) => {
@@ -278,14 +278,14 @@ async function main(): Promise<void> {
       return n * 2;
     });
     assert.deepStrictEqual(out, [2, 4, 6, 8, 10, 12, 14], 'risultati completi e in ordine');
-    assert.ok(maxInFlight <= 3, `concorrenza max ${maxInFlight} deve essere <= 3`);
-    assert.ok(maxInFlight >= 2, `deve girare in parallelo (max osservato ${maxInFlight})`);
-    // limite maggiore del numero di item: nessun crash, tutti eseguiti
+    assert.ok(maxInFlight <= 3, `max concurrency ${maxInFlight} must be <= 3`);
+    assert.ok(maxInFlight >= 2, `must run in parallel (max observed ${maxInFlight})`);
+    // limit larger than the item count: no crash, everything runs
     assert.deepStrictEqual(await mapPool([1, 2], 10, async (n) => n + 1), [2, 3]);
     assert.deepStrictEqual(await mapPool([], 4, async (n) => n), []);
   });
 
-  await test('allocWarnings: OOM e restart loop oltre soglia (default 3)', () => {
+  await test('allocWarnings: OOM and restart loop beyond the threshold (default 3)', () => {
     assert.deepStrictEqual(allocWarnings({ restarts: 0, oom: false }), []);
     assert.deepStrictEqual(allocWarnings({ restarts: 2, oom: false }), []); // sotto soglia
     assert.deepStrictEqual(allocWarnings({ restarts: 5, oom: false }), ['restart loop ×5']);
@@ -293,7 +293,7 @@ async function main(): Promise<void> {
     assert.deepStrictEqual(allocWarnings({ restarts: 4, oom: true }), ['OOM', 'restart loop ×4']);
   });
 
-  await test('drift: summarizeJob + compareJobSpecs evidenziano image/count/env diversi', () => {
+  await test('drift: summarizeJob + compareJobSpecs surface differing image/count/env', () => {
     const mk = (image: string, count: number, env: Record<string, string>): RawJob => ({
       ID: 'web',
       TaskGroups: [
@@ -318,13 +318,13 @@ async function main(): Promise<void> {
     assert.ok(md.includes('≠'));
   });
 
-  await test('snapshotFileName: slug del cluster + data, estensione .md', () => {
+  await test('snapshotFileName: cluster slug + date, .md extension', () => {
     assert.strictEqual(snapshotFileName('prod', '2026-07-24'), 'nomad-snapshot-prod-2026-07-24.md');
     assert.strictEqual(snapshotFileName('ovh cluster/1', '2026-07-24'), 'nomad-snapshot-ovh-cluster-1-2026-07-24.md');
     assert.strictEqual(snapshotFileName('', '2026-07-24'), 'nomad-snapshot-cluster-2026-07-24.md');
   });
 
-  await test('renderImageInventory: matrice job×cluster e marcatore drift', () => {
+  await test('renderImageInventory: job×cluster matrix and drift marker', () => {
     const md = renderImageInventory([
       { cluster: 'prod', jobs: [{ id: 'web', images: ['nginx:1.27'] }, { id: 'api', images: ['api:2.0'] }] },
       { cluster: 'dev', jobs: [{ id: 'web', images: ['nginx:1.25'] }] },
@@ -333,14 +333,14 @@ async function main(): Promise<void> {
     // web ha immagini diverse tra prod e dev -> drift
     const webRow = md.split('\n').find((l) => l.startsWith('| web |'))!;
     assert.ok(webRow.includes('nginx:1.27') && webRow.includes('nginx:1.25'));
-    assert.ok(webRow.trimEnd().endsWith('≠ |'), 'web deve essere marcato drift');
-    // api esiste solo in prod -> cella '—' in dev, nessun drift
+    assert.ok(webRow.trimEnd().endsWith('≠ |'), 'web must be marked as drifted');
+    // api exists only in prod -> '—' cell in dev, no drift
     const apiRow = md.split('\n').find((l) => l.startsWith('| api |'))!;
     assert.ok(apiRow.includes('—'));
-    assert.ok(!apiRow.trimEnd().endsWith('≠ |'), 'api presente in un solo cluster: niente drift');
+    assert.ok(!apiRow.trimEnd().endsWith('≠ |'), 'api present in a single cluster: no drift');
   });
 
-  await test('grepLogs: match case-insensitive di default, numeri di riga, opzione sensibile', () => {
+  await test('grepLogs: case-insensitive by default, line numbers, case-sensitive option', () => {
     const sources: LogSource[] = [
       { alloc: 'aaaa1111', task: 'app', type: 'stdout', text: 'ok\nERROR boom\nok again' },
       { alloc: 'bbbb2222', task: 'app', type: 'stderr', text: 'nothing here\nerror lower' },
@@ -351,26 +351,26 @@ async function main(): Promise<void> {
       m.map((x) => [x.alloc, x.type, x.line]),
       [['aaaa1111', 'stdout', 2], ['bbbb2222', 'stderr', 2]]
     );
-    // case sensitive: solo "error" minuscolo
+    // case sensitive: only lowercase "error"
     const cs = grepLogs(sources, 'error', { caseSensitive: true });
     assert.strictEqual(cs.length, 1);
     assert.strictEqual(cs[0].alloc, 'bbbb2222');
-    // query vuota → nessun match
+    // empty query → no match
     assert.deepStrictEqual(grepLogs(sources, ''), []);
   });
 
-  await test('renderGrepReport: intestazione, conteggi e raggruppamento per alloc', () => {
+  await test('renderGrepReport: header, counts and grouping by alloc', () => {
     const md = renderGrepReport('packager', 'timeout', [
       { alloc: 'aaaa1111', task: 'app', type: 'stdout', line: 5, text: '  timeout waiting  ' },
       { alloc: 'aaaa1111', task: 'app', type: 'stderr', line: 9, text: 'timeout again' },
     ]);
     assert.ok(md.includes('grep "timeout" — packager'));
-    assert.ok(md.includes('2 match in 1 allocation.'));
+    assert.ok(md.includes('2 matches in 1 allocation.'));
     assert.ok(md.includes('## alloc aaaa1111'));
-    assert.ok(md.includes('`app/stdout:5` timeout waiting'), 'riga trimmata con posizione');
+    assert.ok(md.includes('`app/stdout:5` timeout waiting'), 'trimmed line with its position');
   });
 
-  await test('deploy: aggrega i task group, deriva stato e riga status bar', () => {
+  await test('deploy: aggregates the task groups, derives state and the status bar line', () => {
     const agg = aggregateDeployment({
       web: { DesiredTotal: 3, PlacedAllocs: 3, HealthyAllocs: 2, UnhealthyAllocs: 0, DesiredCanaries: 1 },
       api: { DesiredTotal: 2, PlacedAllocs: 2, HealthyAllocs: 2, UnhealthyAllocs: 0 },
@@ -394,30 +394,30 @@ async function main(): Promise<void> {
     assert.ok(deployStatusBar('web', 'successful', agg).includes('$(check)'));
   });
 
-  await test('deployNotification: notifica solo sui cambi di stato terminali', () => {
+  await test('deployNotification: notifies only on transitions to terminal states', () => {
     assert.strictEqual(deployNotification(undefined, 'web', 'running', ''), null); // primo giro
-    assert.strictEqual(deployNotification('running', 'web', 'running', ''), null); // nessun cambio
+    assert.strictEqual(deployNotification('running', 'web', 'running', ''), null); // no change
     assert.strictEqual(deployNotification('running', 'web', 'successful', '')?.kind, 'success');
     assert.strictEqual(deployNotification('running', 'web', 'failed', 'boom')?.kind, 'failure');
     assert.strictEqual(deployNotification('running', 'web', 'cancelled', '')?.kind, 'failure');
-    assert.strictEqual(deployNotification('pending', 'web', 'running', ''), null); // running non notifica
+    assert.strictEqual(deployNotification('pending', 'web', 'running', ''), null); // running does not notify
   });
 
-  await test('isDeployStalled: solo running e oltre soglia', () => {
+  await test('isDeployStalled: only running and beyond the threshold', () => {
     assert.strictEqual(isDeployStalled('running', 5000, 3000), true);
     assert.strictEqual(isDeployStalled('running', 1000, 3000), false);
     assert.strictEqual(isDeployStalled('successful', 999999, 3000), false);
   });
 
-  await test('actions: stop/restart distruttivi, stop richiede digitazione, start no', () => {
+  await test('actions: stop/restart destructive, stop requires typing, start does not', () => {
     assert.strictEqual(ACTIONS.stopJob.destructive, true);
     assert.strictEqual(ACTIONS.stopJob.requireType, true);
     assert.strictEqual(ACTIONS.restartAlloc.destructive, true);
     assert.strictEqual(ACTIONS.restartAlloc.requireType, false);
     assert.strictEqual(ACTIONS.startJob.destructive, false);
     assert.ok(confirmMessage('stopJob', 'packager').includes('packager'));
-    assert.ok(confirmMessage('stopJob', 'packager').includes('mutativa'));
-    assert.ok(!confirmMessage('startJob', 'packager').includes('mutativa'));
+    assert.ok(confirmMessage('stopJob', 'packager').includes('mutates the cluster'));
+    assert.ok(!confirmMessage('startJob', 'packager').includes('mutates the cluster'));
   });
 
   await test('actions: revert job is destructive and requires typing the id', () => {
@@ -709,30 +709,30 @@ async function main(): Promise<void> {
     assert.ok(ok.includes('allocations'), 'the healthy case should point elsewhere');
   });
 
-  await test('desiredFromJob: somma i Count dei task group (0 se assenti)', () => {
+  await test('desiredFromJob: sums the task groups Count (0 when absent)', () => {
     assert.strictEqual(desiredFromJob({ TaskGroups: [{ Count: 3 }, { Count: 2 }] }), 5);
     assert.strictEqual(desiredFromJob({ TaskGroups: [{ Count: 1 }, {}] }), 1); // Count mancante = 0
     assert.strictEqual(desiredFromJob({ TaskGroups: null }), 0);
     assert.strictEqual(desiredFromJob({}), 0);
   });
 
-  await test('tokenSentInClear: token in chiaro solo su http verso host non locale', () => {
+  await test('tokenSentInClear: cleartext only over http towards a non-local host', () => {
     assert.strictEqual(tokenSentInClear('http://nomad.example:4646', true), true);
     assert.strictEqual(tokenSentInClear('https://nomad.example:4646', true), false);
     assert.strictEqual(tokenSentInClear('http://127.0.0.1:4646', true), false);
     assert.strictEqual(tokenSentInClear('http://localhost:4646', true), false);
-    assert.strictEqual(tokenSentInClear('http://nomad.example:4646', false), false); // nessun token
+    assert.strictEqual(tokenSentInClear('http://nomad.example:4646', false), false); // no token
     assert.strictEqual(tokenSentInClear('non-un-url', true), false);
   });
 
-  await test('vulncheck auto-fix: interviene solo su "Prompt", con scope e target giusti', () => {
+  await test('vulncheck auto-fix: only acts on "Prompt", with the right scope and target', () => {
     const base: VulncheckState = {
       goExtensionInstalled: true,
       autoFixEnabled: true,
       fixTarget: 'Off',
       effectiveValue: 'Prompt',
     };
-    // caso tipico: default implicito "Prompt", nessun override -> fix globale a Off
+    // typical case: implicit "Prompt" default, no override -> global fix to Off
     assert.deepStrictEqual(decideVulncheckFix(base), {
       action: 'fix',
       from: 'Prompt',
@@ -745,7 +745,7 @@ async function main(): Promise<void> {
     // target configurabile
     const imp = decideVulncheckFix({ ...base, fixTarget: 'Imports' });
     assert.strictEqual(imp.action === 'fix' ? imp.to : undefined, 'Imports');
-    // no-op: valore gia' valido, auto-fix off, Go extension assente
+    // no-op: value already valid, auto-fix off, Go extension missing
     assert.strictEqual(decideVulncheckFix({ ...base, effectiveValue: 'Off' }).action, 'none');
     assert.strictEqual(decideVulncheckFix({ ...base, effectiveValue: 'Imports' }).action, 'none');
     assert.strictEqual(decideVulncheckFix({ ...base, effectiveValue: undefined }).action, 'none');
@@ -753,18 +753,18 @@ async function main(): Promise<void> {
     assert.strictEqual(decideVulncheckFix({ ...base, goExtensionInstalled: false }).action, 'none');
   });
 
-  // Regressione: HCL2 (Nomad >= 1.x) rifiuta un blocco single-line con piu' di
-  // un argomento, es. `resources { cpu = 100, memory = 64 }`. Girava solo in CI
-  // (dove `nomad` c'e'); questo lint gira sempre e blocca la fixture a monte.
-  await test('hcl fixture: nessun blocco single-line multi-argomento (HCL2)', () => {
+  // Regression: HCL2 (Nomad >= 1.x) rejects a single-line block with more than one
+  // argument, e.g. `resources { cpu = 100, memory = 64 }`. It only surfaced in CI
+  // (where `nomad` exists); this lint always runs and blocks the fixture upfront.
+  await test('hcl fixture: no single-line block with multiple arguments (HCL2)', () => {
     const bad = HCL.split('\n')
       .map((line, i) => ({ n: i + 1, line }))
-      // ignora le virgole dentro le stringhe (es. un valore "a,b")
+      // ignore commas inside strings (e.g. a value "a,b")
       .filter(({ line }) => /\{[^{}]*,[^{}]*\}/.test(line.replace(/"[^"]*"/g, '""')));
     assert.deepStrictEqual(
       bad.map((b) => b.n),
       [],
-      `blocchi single-line multi-arg alle righe: ${bad.map((b) => `${b.n} (${b.line.trim()})`).join(', ')}`
+      `single-line multi-arg blocks at lines: ${bad.map((b) => `${b.n} (${b.line.trim()})`).join(', ')}`
     );
   });
 
@@ -776,7 +776,7 @@ async function main(): Promise<void> {
 
   try {
     if (spawnSync(bin, ['version'], { stdio: 'ignore' }).error) {
-      throw new Error(`binario '${bin}' non disponibile`);
+      throw new Error(`binary '${bin}' not available`);
     }
     fs.writeFileSync(
       path.join(tmp, 'config.hcl'),
@@ -821,7 +821,7 @@ async function main(): Promise<void> {
     await test('integration: plan with identical spec has no diff', async () => {
       const same = await client.parseHcl(HCL);
       const plan = await client.plan(same);
-      assert.ok(renderPlanDiff(plan).includes('Nessuna differenza'));
+      assert.ok(renderPlanDiff(plan).includes('No differences'));
     });
 
     await test('integration: allocations listing does not throw', async () => {
@@ -829,7 +829,7 @@ async function main(): Promise<void> {
       assert.ok(Array.isArray(allocs));
     });
 
-    await test('integration: stopJob deregistra il job', async () => {
+    await test('integration: stopJob deregisters the job', async () => {
       const spec = await client.parseHcl(HCL.replace('lens-demo', 'lens-stopme'));
       await client.registerJob(spec);
       for (let i = 0; i < 20; i++) {
@@ -842,7 +842,7 @@ async function main(): Promise<void> {
         if (!j || j.status === 'dead') return;
         await new Promise((r) => setTimeout(r, 200));
       }
-      assert.fail('lens-stopme ancora attivo dopo stopJob');
+      assert.fail('lens-stopme still active after stopJob');
     });
 
     await test('integration: job versions expose the diff, revert restores the old spec', async () => {
@@ -886,10 +886,10 @@ async function main(): Promise<void> {
       assert.ok(placementSummary(report).includes('constraint'), placementSummary(report));
     });
 
-    await test('integration: restartAllocation + startJob su alloc raw_exec running', async () => {
+    await test('integration: restartAllocation + startJob on a running raw_exec alloc', async () => {
       const spec = await client.parseHcl(RAW_HCL);
       await client.registerJob(spec);
-      // attendi un'allocazione running (raw_exec parte in fretta)
+      // wait for a running allocation (raw_exec starts quickly)
       let allocId = '';
       for (let i = 0; i < 60; i++) {
         const running = (await client.allocations('lens-run')).find((a) => a.clientStatus === 'running');
@@ -899,12 +899,12 @@ async function main(): Promise<void> {
         }
         await new Promise((r) => setTimeout(r, 500));
       }
-      assert.ok(allocId, 'nessuna alloc running per lens-run');
+      assert.ok(allocId, 'no running alloc for lens-run');
 
-      // restart: non deve lanciare
+      // restart: must not throw
       await client.restartAllocation(allocId);
 
-      // stop poi start: il job deve tornare su
+      // stop then start: the job must come back up
       await client.stopJob('lens-run');
       for (let i = 0; i < 20; i++) {
         const j = (await client.jobs()).find((x) => x.id === 'lens-run');
@@ -917,7 +917,7 @@ async function main(): Promise<void> {
         if (j && j.status !== 'dead') return;
         await new Promise((r) => setTimeout(r, 250));
       }
-      assert.fail('startJob non ha riportato su lens-run');
+      assert.fail('startJob did not bring lens-run back up');
     });
 
     await test('integration: allocStats reports usage joined with the requests', async () => {
@@ -953,8 +953,8 @@ async function main(): Promise<void> {
       assert.ok(renderResourceUsage('lens-stats', 'dev', rows).includes('| app |'));
     });
 
-    // Ultimo test di integrazione: il drain sposta le alloc del nodo (unico nel
-    // dev agent), quindi tutto quello che serve running deve venire prima.
+    // Last integration test: the drain moves the node's allocations (the only node in
+    // the dev agent), so everything that needs something running must come first.
     await test('integration: node eligibility toggle and drain/stop-drain round trip', async () => {
       const node = (await client.nodes())[0];
       assert.ok(node, 'the dev agent should expose one node');
