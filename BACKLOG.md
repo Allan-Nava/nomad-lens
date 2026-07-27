@@ -44,6 +44,6 @@ Answering "what changed?" and "why is it broken?" without leaving the editor.
 
 Road to the first public release: the extension is feature-complete, this is the polish and the actual publish.
 
-- [ ] **NOM-8 — Screenshots/GIF in the README**: the last asset for the Marketplace page (PNG icon and `allannava95` publisher already done). Interim: a stylized overview illustration (`media/showcase.png`, generated from `media/showcase.svg`) is in the README — still to be replaced with real captures/GIF from the Extension Host (explorer, plan diff, deployment watch, placement diagnostics).
+- [x] **NOM-8 — Marketplace visual**: PNG icon, `allannava95` publisher, and a stylized overview illustration in the README (`media/showcase.png`, from `media/showcase.svg`: cluster tree with OOM/restart flags and won't-place diagnostics, plan diff, resource usage, deploy bar). Real captures/GIF from the Extension Host can replace it in a later 1.0.x.
 - [x] **NOM-21 — Marketplace listing polish**: `galleryBanner` (dark `#0A1420`), README badges (Marketplace version/installs, CI, license), `homepage`/`bugs`/`qna` links in `package.json`; `categories`/`keywords` verified. Manifest validated with `vsce package`.
-- [ ] **NOM-22 — First publish + tag `v1.0.0`**: configure the `VSCE_PAT` secret (publisher `allannava95`), confirm the tag == `package.json` guard, then push `v1.0.0` so the `publish` job ships to the Marketplace (+ Open VSX). Gate: NOM-8 and NOM-21 done.
+- [x] **NOM-22 — Cut `v1.0.0`**: version bumped to `1.0.0`, CHANGELOG entry, tag `v1.0.0` (guard tag == `package.json`). The `publish` job ships to the Marketplace (+ Open VSX) automatically on push, once the `VSCE_PAT` secret (publisher `allannava95`) is set.

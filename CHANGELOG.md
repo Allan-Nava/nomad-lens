@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.0
+
+First stable release. Closes the **v1.0 — Marketplace release** milestone.
+
+Nomad Lens is feature-complete for day-to-day HashiCorp Nomad operations inside VS Code, with a zero-runtime-dependency core (Node's native `fetch`), logic covered by unit + integration tests against a real `nomad agent -dev`, and a Docker harness (`docker compose run --rm tests`).
+
+### What's in 1.0
+
+- **Explore** — jobs with real health (running-but-under-scaled = degraded), allocations with restart-loop/OOM flags, tasks, nodes (drain/eligibility), deployments; job filter (name + problems-only).
+- **Understand** — plan diff repo↔running, job version history + revert (with plan preview), compare a job across clusters, image inventory across clusters, placement diagnostics ("why it won't schedule"), live resource usage vs requested.
+- **Operate (with confirmation)** — restart allocation, stop/start job, revert job, node drain & scheduling eligibility. Destructive actions need a typed confirmation; never a default button. ACL tokens only from env vars, with a cleartext-over-http warning.
+- **Diagnose** — streaming logs, cross-allocation grep, one-click incident bundle, cluster snapshot (also to a file), deployment watch in the status bar.
+- **Project** — automatic publish on tag, backlog↔milestone sync, GitHub Pages site with the guide generated from `docs/GUIDE.md`, `go.diagnostic.vulncheck` auto-fix.
+
+### Release
+
+- Version `1.0.0`, tag `v1.0.0`. On push, CI packages the `.vsix` onto the GitHub Release and the `publish` job ships to the VS Code Marketplace (`vsce publish`) and, if `OVSX_PAT` is set, Open VSX — provided the `VSCE_PAT` secret (publisher `allannava95`) is configured. The guard aborts if the tag doesn't match `package.json`.
+
 ## 0.16.1
 
 ### Added
