@@ -53,6 +53,9 @@ Open the **Nomad** panel. You will see three sections:
 
 Handy commands from the view:
 - **Refresh** (the ↻ icon in the title) — reload.
+- **Filter Jobs by Name** (the funnel icon) — keep only the jobs whose id contains what you type (case-insensitive).
+- **Show Problem Jobs Only** (the ⚠ icon) — a toggle that keeps only degraded, pending, failed or lost jobs, by *effective* health: a `running` job that is under-scaled counts as a problem.
+- **Clear Job Filter** — removes both. While a filter is active the list starts with an entry like `filter: 2/24 · "web" · problems only`; click it to clear. The filter is always visible on purpose — a shortened list should never look like an empty cluster.
 - **Select Cluster** — switch the active cluster (also from the status bar at the bottom, `$(rocket) nomad: <cluster>`). Switching cluster stops every open log stream.
 
 ## 4. Plan diff: repo vs running

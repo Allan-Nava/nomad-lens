@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -55,6 +55,21 @@
       {
         "command": "nomadLens.selectCluster",
         "title": "Nomad Lens: Select Cluster"
+      },
+      {
+        "command": "nomadLens.filterJobs",
+        "title": "Nomad Lens: Filter Jobs by Name",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "nomadLens.toggleProblemsOnly",
+        "title": "Nomad Lens: Show Problem Jobs Only (toggle)",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "nomadLens.clearFilter",
+        "title": "Nomad Lens: Clear Job Filter",
+        "icon": "$(clear-all)"
       },
       {
         "command": "nomadLens.followLogs",
@@ -139,6 +154,20 @@
           "command": "nomadLens.refresh",
           "when": "view == nomadLens.explorer",
           "group": "navigation"
+        },
+        {
+          "command": "nomadLens.filterJobs",
+          "when": "view == nomadLens.explorer",
+          "group": "navigation"
+        },
+        {
+          "command": "nomadLens.toggleProblemsOnly",
+          "when": "view == nomadLens.explorer",
+          "group": "navigation"
+        },
+        {
+          "command": "nomadLens.clearFilter",
+          "when": "view == nomadLens.explorer"
         },
         {
           "command": "nomadLens.snapshot",

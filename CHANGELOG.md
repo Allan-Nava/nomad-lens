@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.14.0
+
+### Added
+
+- **Job filter in the tree** (NOM-18): two buttons in the Nomad view title — *Filter Jobs by Name* (substring, case-insensitive) and *Show Problem Jobs Only* (degraded/pending/failed/lost, by effective health, so a running-but-under-scaled job counts) — plus *Clear Job Filter*. The two criteria are ANDed. A cluster with hundreds of jobs stays usable.
+  - When a filter is active the list shows it as its **first entry** (`filter: 2/24 · "web" · problems only`), and clicking it clears the filter. A silently truncated list would read as an empty cluster; this makes the hiding explicit.
+  - Escaping the input box leaves the current filter untouched instead of clearing it.
+  - Pure logic in `core/report.ts` (`jobMatchesFilter`, `isFilterActive`, `filterLabel`, `EMPTY_JOB_FILTER`), tested — including that whitespace-only text is not a filter and that `problemsOnly` uses `jobHealth`, not the raw status.
+
 ## 0.13.0
 
 ### Added

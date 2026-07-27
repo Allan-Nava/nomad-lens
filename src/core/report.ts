@@ -98,6 +98,42 @@ export function renderSnapshot(
   return lines.join('\n');
 }
 
+// --- tree filter (NOM-18) ----------------------------------------------------
+
+export interface JobFilter {
+  /** Free text matched case-insensitively against the job id. Empty = everything. */
+  text: string;
+  /** Only jobs whose effective health is a problem. */
+  problemsOnly: boolean;
+}
+
+export const PROBLEM_HEALTH = ['degraded', 'pending', 'failed', 'lost'];
+
+export const EMPTY_JOB_FILTER: JobFilter = { text: '', problemsOnly: false };
+
+/** True when the job should stay visible in the tree. Pure and testable — the
+ *  glue only holds the current filter and re-renders. */
+export function jobMatchesFilter(job: JobSummary, filter: JobFilter): boolean {
+  if (filter.problemsOnly && !PROBLEM_HEALTH.includes(jobHealth(job))) return false;
+  const needle = filter.text.trim().toLowerCase();
+  if (!needle) return true;
+  return job.id.toLowerCase().includes(needle);
+}
+
+export function isFilterActive(filter: JobFilter): boolean {
+  return filter.problemsOnly || filter.text.trim().length > 0;
+}
+
+/** Description of the active filter, e.g. `2/24 · "web" · problems only`.
+ *  Empty string when no filter is active. */
+export function filterLabel(filter: JobFilter, shown: number, total: number): string {
+  if (!isFilterActive(filter)) return '';
+  const bits = [`${shown}/${total}`];
+  if (filter.text.trim()) bits.push(`"${filter.text.trim()}"`);
+  if (filter.problemsOnly) bits.push('problems only');
+  return bits.join(' · ');
+}
+
 /** Nome file per lo snapshot su disco (NOM-7): `nomad-snapshot-<cluster>-<data>.md`.
  *  `date` è una stringa già formattata (es. "2026-07-24"). Puro e testabile. */
 export function snapshotFileName(cluster: string, date: string): string {

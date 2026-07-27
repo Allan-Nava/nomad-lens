@@ -36,7 +36,18 @@ import {
   nodeStateLabel,
   stopDrainBody,
 } from '../src/core/nodes';
-import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings, snapshotFileName } from '../src/core/report';
+import {
+  renderSnapshot,
+  renderPlanDiff,
+  buildIncidentBundle,
+  jobHealth,
+  allocWarnings,
+  snapshotFileName,
+  jobMatchesFilter,
+  isFilterActive,
+  filterLabel,
+  EMPTY_JOB_FILTER,
+} from '../src/core/report';
 import { ACTIONS, confirmMessage } from '../src/core/actions';
 import {
   aggregateDeployment,
@@ -489,6 +500,39 @@ async function main(): Promise<void> {
     assert.ok(!none.includes('```'), none);
     // the oldest one has no predecessor
     assert.ok(renderVersionDiff('packager', vs[2]).includes('Oldest version'));
+  });
+
+  // --- tree filter (NOM-18) ----------------------------------------------------
+
+  await test('jobMatchesFilter: substring on the id, case-insensitive', () => {
+    assert.ok(jobMatchesFilter(jobs[0], { text: 'TRANS', problemsOnly: false }));
+    assert.ok(jobMatchesFilter(jobs[0], { text: 'code', problemsOnly: false }), 'substring, not prefix');
+    assert.ok(!jobMatchesFilter(jobs[0], { text: 'packager', problemsOnly: false }));
+    // empty or whitespace-only text is not a filter
+    assert.ok(jobMatchesFilter(jobs[0], { text: '   ', problemsOnly: false }));
+    assert.ok(jobMatchesFilter(jobs[0], EMPTY_JOB_FILTER));
+  });
+
+  await test('jobMatchesFilter: problemsOnly uses the effective health', () => {
+    // transcoder is running, packager is degraded (running < desired), cleanup is dead
+    assert.ok(!jobMatchesFilter(jobs[0], { text: '', problemsOnly: true }));
+    assert.ok(jobMatchesFilter(jobs[1], { text: '', problemsOnly: true }), 'degraded is a problem');
+    assert.ok(!jobMatchesFilter(jobs[2], { text: '', problemsOnly: true }), 'dead is not a problem');
+    // the two criteria are ANDed
+    assert.ok(!jobMatchesFilter(jobs[1], { text: 'transcoder', problemsOnly: true }));
+    assert.ok(jobMatchesFilter(jobs[1], { text: 'pack', problemsOnly: true }));
+  });
+
+  await test('isFilterActive / filterLabel: describe what is being hidden', () => {
+    assert.strictEqual(isFilterActive(EMPTY_JOB_FILTER), false);
+    assert.strictEqual(isFilterActive({ text: ' ', problemsOnly: false }), false);
+    assert.strictEqual(isFilterActive({ text: 'web', problemsOnly: false }), true);
+    assert.strictEqual(isFilterActive({ text: '', problemsOnly: true }), true);
+    assert.strictEqual(filterLabel(EMPTY_JOB_FILTER, 3, 3), '');
+    const label = filterLabel({ text: 'web', problemsOnly: true }, 2, 24);
+    assert.ok(label.includes('2/24'), label);
+    assert.ok(label.includes('"web"'), label);
+    assert.ok(label.includes('problems only'), label);
   });
 
   // --- nodes: drain / eligibility (NOM-17) -------------------------------------

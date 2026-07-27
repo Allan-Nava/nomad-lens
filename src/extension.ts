@@ -22,7 +22,19 @@ import {
   ClusterInventory,
   RawJob,
 } from './core/drift';
-import { renderSnapshot, renderPlanDiff, buildIncidentBundle, jobHealth, allocWarnings, snapshotFileName } from './core/report';
+import {
+  renderSnapshot,
+  renderPlanDiff,
+  buildIncidentBundle,
+  jobHealth,
+  allocWarnings,
+  snapshotFileName,
+  jobMatchesFilter,
+  isFilterActive,
+  filterLabel,
+  EMPTY_JOB_FILTER,
+  JobFilter,
+} from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
 import { parseVersions, versionPickItem, renderVersionHistory, renderVersionDiff } from './core/versions';
@@ -39,6 +51,7 @@ type Node =
   | { kind: 'alloc'; alloc: AllocSummary }
   | { kind: 'task'; alloc: AllocSummary; task: string }
   | { kind: 'node'; node: NodeSummary }
+  | { kind: 'filter'; label: string }
   | { kind: 'leaf'; label: string; iconId?: string };
 
 const HEALTH_ICON: Record<string, string> = {
@@ -54,11 +67,22 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
   readonly onDidChangeTreeData = this.emitter.event;
   /** jobId → why the scheduler cannot place it (NOM-15), refreshed with the list. */
   private placementWarn = new Map<string, string>();
+  /** Active job filter (NOM-18). */
+  private filter: JobFilter = EMPTY_JOB_FILTER;
 
   constructor(private getClient: () => NomadClient | null) {}
 
   refresh(): void {
     this.emitter.fire(undefined);
+  }
+
+  getFilter(): JobFilter {
+    return this.filter;
+  }
+
+  setFilter(filter: JobFilter): void {
+    this.filter = filter;
+    this.refresh();
   }
 
   getTreeItem(node: Node): vscode.TreeItem {
@@ -128,6 +152,13 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
         item.contextValue = `node-${n.drain ? 'draining' : n.eligibility}`;
         return item;
       }
+      case 'filter': {
+        const item = new vscode.TreeItem(`filter: ${node.label}`, vscode.TreeItemCollapsibleState.None);
+        item.iconPath = new vscode.ThemeIcon('filter');
+        item.tooltip = 'Click to clear the filter';
+        item.command = { command: 'nomadLens.clearFilter', title: 'Clear Filter' };
+        return item;
+      }
       case 'leaf': {
         const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.None);
         if (node.iconId) item.iconPath = new vscode.ThemeIcon(node.iconId);
@@ -164,11 +195,21 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
         ];
       }
       if (node.kind === 'section' && node.label === 'Jobs') {
-        const jobs = await client.jobs();
+        const all = await client.jobs();
+        const jobs = all.filter((j) => jobMatchesFilter(j, this.filter));
         await this.markStuckJobs(client, jobs);
-        return jobs
+        const items: Node[] = jobs
           .sort((a, b) => a.id.localeCompare(b.id))
           .map((job) => ({ kind: 'job' as const, job }));
+        if (isFilterActive(this.filter)) {
+          // The filter must be visible: a silently truncated list reads as an
+          // empty cluster. The entry clears the filter when clicked.
+          items.unshift({
+            kind: 'filter',
+            label: filterLabel(this.filter, jobs.length, all.length),
+          });
+        }
+        return items;
       }
       if (node.kind === 'section' && node.label === 'Nodes') {
         const nodes = await client.nodes();
@@ -295,6 +336,30 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('nomadLens.refresh', () => tree.refresh()),
+
+    // --- job filter (NOM-18) ---------------------------------------------------
+
+    vscode.commands.registerCommand('nomadLens.filterJobs', async () => {
+      const current = tree.getFilter();
+      const text = await vscode.window.showInputBox({
+        prompt: 'Filter jobs by name (substring, case-insensitive). Empty clears the text filter.',
+        value: current.text,
+        placeHolder: 'e.g. transcoder',
+      });
+      if (text === undefined) return; // escaped: leave the filter untouched
+      tree.setFilter({ ...current, text });
+    }),
+
+    vscode.commands.registerCommand('nomadLens.toggleProblemsOnly', () => {
+      const current = tree.getFilter();
+      tree.setFilter({ ...current, problemsOnly: !current.problemsOnly });
+      void vscode.window.setStatusBarMessage(
+        current.problemsOnly ? 'Nomad Lens: showing all jobs' : 'Nomad Lens: showing problem jobs only',
+        3000
+      );
+    }),
+
+    vscode.commands.registerCommand('nomadLens.clearFilter', () => tree.setFilter(EMPTY_JOB_FILTER)),
 
     vscode.commands.registerCommand('nomadLens.selectCluster', async () => {
       const all = clusters();
