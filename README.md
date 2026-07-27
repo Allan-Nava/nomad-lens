@@ -2,7 +2,7 @@
 
 **HashiCorp Nomad operations inside VS Code** — the place where you already edit your job specs.
 
-🌐 **[Website / landing page →](https://allan-nava.github.io/nomad-lens/)** · 📖 **[Full user guide →](docs/GUIDE.md)**
+🌐 **[Website →](https://allan-nava.github.io/nomad-lens/)** · 📖 **[Full documentation →](https://allan-nava.github.io/nomad-lens/guide.html)** (source: [docs/GUIDE.md](docs/GUIDE.md))
 
 ## Features
 
@@ -36,6 +36,7 @@ ACL tokens are read from an environment variable (you configure the variable *na
 npm install
 npm test             # unit tests + integration against a throwaway `nomad agent -dev`
 npm run build        # bundle to dist/
+npm run site         # generate site/guide.html from docs/GUIDE.md
 # F5 in VS Code launches the Extension Development Host
 ```
 

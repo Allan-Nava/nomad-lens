@@ -1,7 +1,9 @@
 name: Pages
 
-# Publishes the landing page (site/) to GitHub Pages. `configure-pages` with
-# enablement:true enables Pages by itself on the first run, if the Actions
+# Publishes the site (site/) to GitHub Pages. `site/guide.html` is GENERATED from
+# docs/GUIDE.md by `npm run site` — the guide in the repo is the single source of
+# truth, so the published documentation cannot drift from it. `configure-pages`
+# with enablement:true enables Pages by itself on the first run, if the Actions
 # permissions allow it; otherwise enable it once in Settings → Pages
 # (Source: GitHub Actions).
 
@@ -10,6 +12,9 @@ on:
     branches: ["main"]
     paths:
       - "site/**"
+      - "docs/GUIDE.md"
+      - "scripts/build-site.ts"
+      - "src/core/markdown.ts"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -30,6 +35,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Generate guide.html from docs/GUIDE.md
+        run: npm run site
       - name: Configure Pages (auto-enable)
         uses: actions/configure-pages@v5
         with:

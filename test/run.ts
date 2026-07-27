@@ -59,6 +59,7 @@ import {
 import { grepLogs, renderGrepReport, LogSource } from '../src/core/grep';
 import { summarizeJob, compareJobSpecs, renderComparison, jobImages, renderImageInventory, RawJob } from '../src/core/drift';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
+import { renderMarkdown, slugify } from '../src/core/markdown';
 
 // Reference spec used by the integration tests. At module level so it can be
 // linted even when `nomad` is absent (integration skipped).
@@ -500,6 +501,105 @@ async function main(): Promise<void> {
     assert.ok(!none.includes('```'), none);
     // the oldest one has no predecessor
     assert.ok(renderVersionDiff('packager', vs[2]).includes('Oldest version'));
+  });
+
+  // --- markdown renderer for the published guide (NOM-20) ----------------------
+
+  await test('slugify: anchors from heading text', () => {
+    assert.strictEqual(slugify('19. Settings reference'), '19-settings-reference');
+    assert.strictEqual(slugify('`go.diagnostic.vulncheck` auto-fix'), 'go-diagnostic-vulncheck-auto-fix');
+    assert.strictEqual(slugify('###'), 'section', 'never an empty anchor');
+  });
+
+  await test('renderMarkdown: headings collect a TOC with unique ids', () => {
+    const { html, headings } = renderMarkdown('# Guide\n\n## One\n\n## One\n\n### Deep\n');
+    assert.deepStrictEqual(
+      headings.map((h) => [h.level, h.id]),
+      [
+        [1, 'guide'],
+        [2, 'one'],
+        [2, 'one-2'],
+        [3, 'deep'],
+      ]
+    );
+    assert.ok(html.includes('<h2 id="one-2">One</h2>'), html);
+  });
+
+  await test('renderMarkdown: inline code, bold, italic and links', () => {
+    const { html } = renderMarkdown('A `code` and **bold** and *it* and [text](docs/X.md).');
+    assert.ok(html.includes('<code>code</code>'));
+    assert.ok(html.includes('<strong>bold</strong>'));
+    assert.ok(html.includes('<em>it</em>'));
+    assert.ok(html.includes('<a href="docs/X.md">text</a>'));
+    // external links open in a new tab, internal ones do not
+    assert.ok(renderMarkdown('[x](https://e.com)').html.includes('target="_blank"'));
+    assert.ok(!renderMarkdown('[x](./a.html)').html.includes('target="_blank"'));
+  });
+
+  await test('renderMarkdown: markup inside code spans stays literal', () => {
+    const { html } = renderMarkdown('Use `**not bold**` and `<script>` here.');
+    assert.ok(html.includes('<code>**not bold**</code>'), html);
+    assert.ok(html.includes('<code>&lt;script&gt;</code>'), html);
+    assert.ok(!html.includes('<strong>'), 'bold must not apply inside a code span');
+  });
+
+  await test('renderMarkdown: raw HTML in the source is escaped, never passed through', () => {
+    const { html } = renderMarkdown('Text <script>alert(1)</script> & more.');
+    assert.ok(!html.includes('<script>'), html);
+    assert.ok(html.includes('&lt;script&gt;'));
+    assert.ok(html.includes('&amp; more'));
+  });
+
+  await test('renderMarkdown: fenced code keeps its content verbatim', () => {
+    const { html } = renderMarkdown('```jsonc\n{ "a": "<b>" } // note\n```');
+    assert.ok(html.includes('<pre><code class="language-jsonc">'), html);
+    assert.ok(html.includes('{ &quot;a&quot;: &quot;&lt;b&gt;&quot; } // note'), html);
+  });
+
+  await test('renderMarkdown: pipe table with an alignment row', () => {
+    const { html } = renderMarkdown('| A | B |\n|---|:-:|\n| 1 | `x` |\n| 2 | y |\n');
+    assert.ok(html.includes('<div class="table-wrap"><table><thead><tr><th>A</th><th>B</th>'), html);
+    assert.ok(html.includes('<td>1</td><td><code>x</code></td>'), html);
+    assert.strictEqual((html.match(/<tr>/g) ?? []).length, 3, 'one header row + two body rows');
+  });
+
+  await test('renderMarkdown: nested lists, ordered lists and blockquotes', () => {
+    const nested = renderMarkdown('- top:\n  - child one\n  - child two\n- second\n').html;
+    assert.ok(nested.includes('<li>top:<ul><li>child one</li><li>child two</li></ul></li>'), nested);
+    assert.ok(nested.includes('<li>second</li>'));
+    assert.ok(renderMarkdown('1. first\n2. second\n').html.startsWith('<ol>'));
+    assert.ok(renderMarkdown('> a note\n> continued\n').html.includes('<blockquote><p>a note continued</p>'));
+  });
+
+  await test('renderMarkdown: --- is a rule, but a table separator is not', () => {
+    assert.ok(renderMarkdown('a\n\n---\n\nb').html.includes('<hr>'));
+    assert.ok(!renderMarkdown('| A |\n|---|\n| 1 |\n').html.includes('<hr>'));
+  });
+
+  await test('renderMarkdown: the real guide renders with every section', () => {
+    // The test bundle is ESM, so there is no __dirname: npm test runs from the root.
+    const md = fs.readFileSync(path.join(process.cwd(), 'docs', 'GUIDE.md'), 'utf8');
+    const { html, headings } = renderMarkdown(md);
+    const h2 = headings.filter((h) => h.level === 2);
+    assert.ok(h2.length >= 20, `the guide should have 20+ sections, found ${h2.length}`);
+    assert.ok(headings.some((h) => h.id === '18-command-reference'), 'command reference anchor');
+    assert.ok(headings.some((h) => h.id === '19-settings-reference'), 'settings reference anchor');
+    // the anchors the landing page links to must exist, or those links 404 silently
+    for (const id of [
+      '2-configuring-clusters',
+      '5-job-version-history-and-revert',
+      '6-why-is-my-job-not-scheduling',
+      '8-cross-allocation-grep',
+      '11-node-drain-and-eligibility',
+      '13-resource-usage-vs-requested',
+      '14-compare-a-job-across-clusters-drift',
+      '17-recipes',
+      '21-troubleshooting',
+      '22-security-in-short',
+    ]) {
+      assert.ok(headings.some((h) => h.id === id), `missing anchor linked from the landing page: ${id}`);
+    }
+    assert.ok(!html.includes('<script'), 'the generated page must contain no script tag');
   });
 
   // --- tree filter (NOM-18) ----------------------------------------------------

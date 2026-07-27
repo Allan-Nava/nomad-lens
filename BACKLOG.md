@@ -36,6 +36,10 @@ Answering "what changed?" and "why is it broken?" without leaving the editor.
 - [x] **NOM-18 — Filter the tree**: a filter box on the Nomad view — free text on the job name plus a "problems only" toggle (degraded/pending/failed), so a cluster with hundreds of jobs stays usable. Pure predicate `jobMatchesFilter` in `core/report.ts`, tested.
 - [x] **NOM-19 — Codebase in English** (chore): translate the Italian still left in `src/` and `test/` — comments, user-facing strings (`Nessun cluster configurato`, `Digita "…" per confermare`), headings of the generated reports (`## Tutti i job`) and test names — per the rule in `CLAUDE.md`/`AGENTS.md`. Touches visible output, so it needs the test expectations updated in the same pass.
 
+## v0.6 — Docs
+
+- [x] **NOM-20 — Published documentation generated from the guide**: `site/guide.html` is built from `docs/GUIDE.md` by `npm run site` (pure renderer `core/markdown.ts`, tested; `scripts/build-site.ts` for the shell), and the Pages workflow runs it before uploading — so the website can never document a version of the extension that no longer exists. The guide itself was deepened: sequential numbering, a complete command reference, a complete settings reference and a recipes section; the landing page links into it by anchor.
+
 ## Release
 
 - [ ] **NOM-8 — Screenshots/GIF in the README**: the last asset for the Marketplace page (PNG icon and `allannava95` publisher already done).

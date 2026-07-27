@@ -154,13 +154,14 @@
       <p class="tagline rise d2"><strong>Nomad</strong> operations where you already write your job specs: explorer, plan diff, logs, incidents. <strong>Zero runtime dependencies.</strong></p>
       <div class="cta rise d3">
         <a class="btn primary" href="https://marketplace.visualstudio.com/items?itemName=allannava95.nomad-lens">⬇ Install from the Marketplace</a>
-        <a class="btn" href="https://github.com/Allan-Nava/nomad-lens/blob/main/docs/GUIDE.md">📖 User guide</a>
+        <a class="btn" href="./guide.html">📖 Full documentation</a>
         <a class="btn" href="https://github.com/Allan-Nava/nomad-lens">★ GitHub</a>
       </div>
       <div class="pills rise d4">
         <span class="pill"><b>0</b> runtime deps</span>
         <span class="pill">Nomad HTTP API</span>
         <span class="pill">tokens from env <b>only</b></span>
+        <span class="pill">24 commands</span>
         <span class="pill">MIT</span>
       </div>
     </div>
@@ -191,7 +192,7 @@
   <main class="wrap">
     <section>
       <h2>What it does</h2>
-      <p class="sub">Six features, one panel. Read-only by default; mutating actions always ask first.</p>
+      <p class="sub">One panel. Read-only by default; every mutating action asks first, and the destructive ones make you type the name.</p>
       <div class="grid">
         <div class="card"><div class="ico">🗂️</div><h3>Cluster explorer</h3><p>Jobs with real health — a <code>running</code> one with missing allocs is <b>degraded</b> — allocations, tasks, nodes, deployments. Multi-cluster, one switch.</p></div>
         <div class="card"><div class="ico">🔀</div><h3>Plan diff repo↔running</h3><p>Open a <code>.nomad</code>/<code>.hcl</code> and see the diff against the running job <em>before</em> deploying. Server-side HCL parsing.</p></div>
@@ -199,6 +200,33 @@
         <div class="card"><div class="ico">🚨</div><h3>Incident bundle</h3><p>One click on a failed alloc: an <code>incidents/</code> folder with a report (event timeline) and the tail of the logs attached.</p></div>
         <div class="card"><div class="ico">📸</div><h3>Cluster snapshot</h3><p>A markdown health report: problems on top, full table below. Perfect for the morning check.</p></div>
         <div class="card"><div class="ico">🔒</div><h3>Safe by default</h3><p>ACL tokens from env vars only, never in settings/logs. A warning if a token would travel in cleartext over http.</p></div>
+      </div>
+    </section>
+
+
+    <section>
+      <h2>Deep dive</h2>
+      <p class="sub">The questions you actually ask during an incident — answered without leaving the editor.</p>
+      <div class="grid">
+        <div class="card"><div class="ico">🕓</div><h3>Version history &amp; revert</h3><p>What did the last deploy change? Diff any two versions, then roll back with the plan preview in front of you. <a href="./guide.html#5-job-version-history-and-revert">Read more →</a></p></div>
+        <div class="card"><div class="ico">🧭</div><h3>Placement diagnostics</h3><p>Why won't it schedule? The scheduler's counters as sentences: constraint, exhausted memory, empty datacenter, quota. <a href="./guide.html#6-why-is-my-job-not-scheduling">Read more →</a></p></div>
+        <div class="card"><div class="ico">📊</div><h3>Usage vs requested</h3><p>Live CPU and memory against the spec. Flags the task about to be OOM-killed and the reservation nobody uses. <a href="./guide.html#13-resource-usage-vs-requested">Read more →</a></p></div>
+        <div class="card"><div class="ico">🚧</div><h3>Node drain &amp; eligibility</h3><p>Make a node ineligible before maintenance, drain it with a deadline, watch the remaining allocations. <a href="./guide.html#11-node-drain-and-eligibility">Read more →</a></p></div>
+        <div class="card"><div class="ico">🔎</div><h3>Grep across allocations</h3><p>Which instance logged that error? One search over stdout+stderr of every allocation, in parallel. <a href="./guide.html#8-cross-allocation-grep">Read more →</a></p></div>
+        <div class="card"><div class="ico">🪞</div><h3>Drift between clusters</h3><p>Same job on two clusters, field by field — plus a job × cluster matrix of docker images. <a href="./guide.html#14-compare-a-job-across-clusters-drift">Read more →</a></p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Documentation</h2>
+      <p class="sub">Generated from <code>docs/GUIDE.md</code> in the repo, so it never drifts from the extension.</p>
+      <div class="grid">
+        <div class="card"><h3><a href="./guide.html#2-configuring-clusters">Setup</a></h3><p>Clusters, namespaces and the ACL token rule: the token is never stored in your settings.</p></div>
+        <div class="card"><h3><a href="./guide.html#17-recipes">Recipes</a></h3><p>Before a deploy · morning check · a failing allocation · node maintenance · is prod really like dev?</p></div>
+        <div class="card"><h3><a href="./guide.html#18-command-reference">Command reference</a></h3><p>All 24 commands, where each one lives and what it does.</p></div>
+        <div class="card"><h3><a href="./guide.html#19-settings-reference">Settings reference</a></h3><p>Every <code>nomadLens.*</code> setting with type, default and meaning.</p></div>
+        <div class="card"><h3><a href="./guide.html#21-troubleshooting">Troubleshooting</a></h3><p>403s, timeouts, empty lists, logs that will not start — symptom to remedy.</p></div>
+        <div class="card"><h3><a href="./guide.html#22-security-in-short">Security</a></h3><p>What is read-only, what asks for confirmation, and how tokens are handled.</p></div>
       </div>
     </section>
 
@@ -212,7 +240,7 @@
   { "name": "prod", "address": "https://nomad.example:4646",
     "namespace": "default", "tokenEnv": "NOMAD_TOKEN_PROD" }
 ]</pre>
-      <p class="note">The <a href="https://github.com/Allan-Nava/nomad-lens/blob/main/docs/GUIDE.md">full user guide</a> covers the explorer, plan, logs, incident bundle, snapshot, troubleshooting and security.</p>
+      <p class="note">The <a href="./guide.html">full documentation</a> covers every command and setting, plus recipes for a deploy, the morning check, a failing allocation and node maintenance.</p>
     </section>
   </main>
 

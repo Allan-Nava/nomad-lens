@@ -2,5 +2,8 @@ node_modules/
 dist/
 out/
 .test/
+.site/
+# Generated from docs/GUIDE.md by `npm run site` (and by the Pages workflow).
+site/guide.html
 *.vsix
 .DS_Store

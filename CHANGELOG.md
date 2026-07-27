@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.16.0
+
+### Added
+
+- **The GitHub Pages site now hosts the full documentation** (NOM-20), generated from `docs/GUIDE.md` instead of duplicating it: `npm run site` renders `site/guide.html` (sticky table of contents, dark theme matching the landing page, responsive tables) and the Pages workflow runs it before uploading. The guide in the repo stays the single source of truth — the same rule `BACKLOG.md` follows — so the published page cannot document a version of the extension that no longer exists. `site/guide.html` is generated, therefore gitignored.
+  - Pure renderer in `core/markdown.ts` (headings with anchors, paragraphs, fenced code, GFM tables, nested lists, blockquotes, rules, inline code/bold/italic/links), zero dependencies, unit-tested. Raw HTML in the source is escaped and markup inside code spans stays literal, so the generated page contains no tag the guide did not ask for — asserted by a test.
+  - `scripts/build-site.ts` builds the page shell; bundled through the same esbuild step as the tests (`node esbuild.mjs --site`) so it can reuse the typed core instead of a second renderer in plain JS.
+  - Two bugs the tests caught before release: the GFM alignment row `:-:` (a single dash) was not recognised, so a centred table silently rendered as a paragraph; and the guide-wide test used `__dirname`, which does not exist in the ESM test bundle.
+
+### Changed
+
+- **`docs/GUIDE.md` deepened and renumbered.** The `4b`/`6b-bis`/`6g` numbering that accumulated over the milestones is now sequential 1–22, and three sections are new: **Recipes** (before a deploy · morning check · a failing allocation · node maintenance · is prod really like dev?), a **command reference** covering all 24 commands with where each one lives, and a **settings reference** with type, default and meaning for every `nomadLens.*` key. Troubleshooting gained the timeout, namespace and active-filter cases.
+- Landing page (`site/index.html`): the guide button and footer link now point at `./guide.html` instead of the GitHub blob; a **Deep dive** card grid covers the v0.5 features (version history, placement diagnostics, resource usage, node drain, cross-alloc grep, drift) and a **Documentation** grid links into the guide by anchor. A test asserts every anchor the landing links to exists in the guide, so those links cannot 404 silently.
+
 ## 0.15.0
 
 Closes the v0.5 — Deep dive milestone.
