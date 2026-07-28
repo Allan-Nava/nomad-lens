@@ -7,6 +7,7 @@ import { renderDashboard } from './core/webview/dashboard';
 import { renderDiffPage } from './core/webview/diff';
 import { JobDiff } from './core/api';
 import { renderJobPanel, isAllowedPanelCommand, isAllocPanelCommand } from './core/webview/job';
+import { renderLogConsole, classifyLines, classifyLine } from './core/webview/logs';
 import {
   ClusterConfig,
   NomadClient,
@@ -952,6 +953,45 @@ export function activate(context: vscode.ExtensionContext): void {
         jobPanel.reveal();
       }
       await renderJobPanelFor(jobId);
+    }),
+
+    vscode.commands.registerCommand('nomadLens.logConsole', async (node?: { alloc: AllocSummary; task: string }) => {
+      if (!client || !node) return;
+      const active = client;
+      const type = (await vscode.window.showQuickPick(['stdout', 'stderr'], {
+        placeHolder: `Log console — ${node.task} (alloc ${node.alloc.id.slice(0, 8)})`,
+      })) as 'stdout' | 'stderr' | undefined;
+      if (!type) return;
+      const panel = vscode.window.createWebviewPanel(
+        'nomadLens.logConsole',
+        `Logs: ${node.alloc.jobId}/${node.task} ${type}`,
+        vscode.ViewColumn.Active,
+        { enableScripts: true, retainContextWhenHidden: true }
+      );
+      const tail = await active.logsTail(node.alloc.id, node.task, type, 65536).catch(() => '');
+      panel.webview.html = renderLogConsole({
+        title: `${node.alloc.jobId}/${node.task} · ${type}`,
+        lines: classifyLines(tail),
+        nonce: crypto.randomBytes(16).toString('base64'),
+        cspSource: panel.webview.cspSource,
+      });
+      let buf = '';
+      const controller = active.followLogs(
+        node.alloc.id,
+        node.task,
+        type,
+        (chunk) => {
+          buf += chunk;
+          const parts = buf.split('\n');
+          buf = parts.pop() ?? '';
+          if (parts.length) void panel.webview.postMessage({ type: 'append', lines: parts.map(classifyLine) });
+        },
+        (err) => {
+          if (buf) void panel.webview.postMessage({ type: 'append', lines: [classifyLine(buf)] });
+          void panel.webview.postMessage({ type: 'end', error: err?.message });
+        }
+      );
+      panel.onDidDispose(() => controller.abort(), null, context.subscriptions);
     })
   );
 

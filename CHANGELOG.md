@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0
+
+Starts the **v1.2 — Live & interactive UI** milestone.
+
+### Added
+
+- **Log console panel** (NOM-27): *Open Log Console* (task context menu) opens a webview log viewer — lines coloured by detected level (error/warn/info/debug), a live substring filter, and follow/wrap toggles. Seeded with the log tail, then streamed live via the existing `followLogs` (line-buffered across chunks, stream aborted when the panel closes). Pure `stripAnsi`/`logLevel`/`classifyLine`/`renderLogConsole` in `core/webview/logs.ts`, tested (ANSI stripping, word-boundaried level detection with no substring false positives, CSP nonce). Zero dependencies.
+
 ## 1.3.0
 
 Closes the **v1.1 — Visual UI** milestone.

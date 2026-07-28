@@ -64,6 +64,7 @@ import { donut, progressBar, sparkline } from '../src/core/webview/charts';
 import { renderDashboard } from '../src/core/webview/dashboard';
 import { renderDiffTree, renderDiffPage } from '../src/core/webview/diff';
 import { renderJobPanel, isAllowedPanelCommand, isAllocPanelCommand } from '../src/core/webview/job';
+import { stripAnsi, logLevel, classifyLine, classifyLines, renderLogConsole } from '../src/core/webview/logs';
 import { JobDiff } from '../src/core/api';
 
 // Reference spec used by the integration tests. At module level so it can be
@@ -345,6 +346,29 @@ async function main(): Promise<void> {
     assert.ok(sparkline([]).includes('no data'));
     assert.ok(sparkline([1, 2, 3]).includes('<polyline'));
     assert.ok(!sparkline([NaN, 1]).includes('<polyline'), 'a single finite point is not enough');
+  });
+
+  await test('log console: ANSI strip, level detection, console shell', () => {
+    assert.strictEqual(stripAnsi('[31mred[0m'), 'red');
+    assert.strictEqual(logLevel('2026 ERROR upstream timeout'), 'error');
+    assert.strictEqual(logLevel('a warning here'), 'warn');
+    assert.strictEqual(logLevel('INFO started'), 'info');
+    assert.strictEqual(logLevel('plain line'), '');
+    assert.strictEqual(logLevel('zooming around'), '', 'no false positive on substrings');
+
+    const cl = classifyLine('[33mWARN disk low[0m');
+    assert.deepStrictEqual(cl, { level: 'warn', text: 'WARN disk low' });
+    assert.strictEqual(classifyLines('a\nERROR b\n').length, 3);
+
+    const html = renderLogConsole({
+      title: 'job/app · stdout',
+      lines: [classifyLine('ERROR boom'), classifyLine('ok')],
+      nonce: 'LOGNONCE',
+      cspSource: '',
+    });
+    assert.ok(html.includes('nonce-LOGNONCE') && html.includes('Content-Security-Policy'));
+    assert.ok(html.includes('id="filter"') && html.includes('id="follow"') && html.includes('id="wrap"'));
+    assert.ok(html.includes('class="ln lvl-error"') && html.includes('ERROR boom'));
   });
 
   await test('job panel: renders alloc rows + action buttons; command contract', () => {
