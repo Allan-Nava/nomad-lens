@@ -60,6 +60,8 @@ import { grepLogs, renderGrepReport, LogSource } from '../src/core/grep';
 import { summarizeJob, compareJobSpecs, renderComparison, jobImages, renderImageInventory, RawJob } from '../src/core/drift';
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 import { renderMarkdown, slugify } from '../src/core/markdown';
+import { donut, progressBar, sparkline } from '../src/core/webview/charts';
+import { renderDashboard } from '../src/core/webview/dashboard';
 
 // Reference spec used by the integration tests. At module level so it can be
 // linted even when `nomad` is absent (integration skipped).
@@ -317,6 +319,64 @@ async function main(): Promise<void> {
     const md = renderComparison('web', 'prod', 'dev', rows);
     assert.ok(md.includes('prod vs dev'));
     assert.ok(md.includes('≠'));
+  });
+
+  await test('charts: donut segments, progressBar clamp, sparkline guards', () => {
+    const d = donut([
+      { label: 'running', value: 3, color: '#0f0' },
+      { label: 'failed', value: 1, color: '#f00' },
+    ]);
+    assert.ok(d.includes('<svg') && d.includes('</svg>'));
+    assert.strictEqual((d.match(/<circle/g) || []).length, 3); // track + 2 segments
+    assert.ok(d.includes('>4<'), 'total in the middle'); // 3+1
+    assert.ok(d.includes('<title>running: 3, failed: 1</title>'));
+    // total 0 → track only, no NaN
+    const empty = donut([]);
+    assert.ok(empty.includes('<circle') && !empty.includes('NaN'));
+
+    // progressBar clamps value>max to full width
+    assert.ok(progressBar(5, 3, '#0f0', 100).includes('width="100"'));
+    assert.ok(progressBar(0, 0, '#0f0', 100).match(/width="0"/), 'max 0 → 0% fill, no div-by-zero');
+
+    // sparkline needs ≥2 finite points
+    assert.ok(sparkline([]).includes('no data'));
+    assert.ok(sparkline([1, 2, 3]).includes('<polyline'));
+    assert.ok(!sparkline([NaN, 1]).includes('<polyline'), 'a single finite point is not enough');
+  });
+
+  await test('renderDashboard: sections, CSP nonce, problems, healthy case', () => {
+    const nonce = 'TESTNONCE';
+    const jobsD: JobSummary[] = [
+      { id: 'web', name: 'web', type: 'service', status: 'running', running: 3, desired: 3, failed: 0 },
+      { id: 'api', name: 'api', type: 'service', status: 'running', running: 1, desired: 3, failed: 1 },
+    ];
+    const html = renderDashboard({
+      cluster: 'prod',
+      jobs: jobsD,
+      nodes: [{ id: 'n1', name: 'w1', status: 'ready', drain: false, eligibility: 'eligible' }],
+      deployments: [
+        { id: 'd1', jobId: 'api', status: 'running', description: '', desired: 3, placed: 1, healthy: 1, unhealthy: 0, canaries: 0 },
+      ],
+      nonce,
+      cspSource: 'vscode-resource:',
+    });
+    assert.ok(html.includes('<!doctype html>'));
+    assert.ok(html.includes(`nonce-${nonce}`), 'CSP carries the nonce');
+    assert.ok(html.includes('Content-Security-Policy'));
+    assert.ok(html.includes('Nomad · prod'));
+    assert.ok(html.includes('api') && html.includes('degraded'), 'under-scaled api flagged as degraded');
+    assert.ok(!html.includes('| web |'));
+    assert.ok(html.includes('<svg'), 'donut present');
+    // healthy cluster → all green
+    const green = renderDashboard({
+      cluster: 'dev',
+      jobs: [{ id: 'ok', name: 'ok', type: 'service', status: 'running', running: 2, desired: 2, failed: 0 }],
+      nodes: [],
+      deployments: [],
+      nonce,
+      cspSource: '',
+    });
+    assert.ok(green.includes('All green'));
   });
 
   await test('snapshotFileName: cluster slug + date, .md extension', () => {

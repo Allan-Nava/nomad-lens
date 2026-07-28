@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as crypto from 'crypto';
+import { renderDashboard } from './core/webview/dashboard';
 import {
   ClusterConfig,
   NomadClient,
@@ -281,6 +283,27 @@ export function activate(context: vscode.ExtensionContext): void {
     logStreams.clear();
   };
 
+  // --- Cluster dashboard webview (NOM-23) --------------------------------------
+  let dashPanel: vscode.WebviewPanel | undefined;
+  const renderDashboardPanel = async () => {
+    if (!dashPanel || !client) return;
+    const active = client;
+    try {
+      const [jobs, nodes, deployments] = await Promise.all([active.jobs(), active.nodes(), active.deployments()]);
+      dashPanel.title = `Nomad: ${active.clusterName}`;
+      dashPanel.webview.html = renderDashboard({
+        cluster: active.clusterName,
+        jobs,
+        nodes,
+        deployments,
+        nonce: crypto.randomBytes(16).toString('base64'),
+        cspSource: dashPanel.webview.cspSource,
+      });
+    } catch (err) {
+      void vscode.window.showErrorMessage(`Dashboard failed — ${err}`);
+    }
+  };
+
   // --- Deployment watch (NOM-2): progress in the status bar + notifications ----
   const deployBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 87);
   context.subscriptions.push(deployBar);
@@ -376,6 +399,7 @@ export function activate(context: vscode.ExtensionContext): void {
       updateStatus();
       tree.refresh();
       void pollDeployments();
+      void renderDashboardPanel();
     }),
 
     vscode.commands.registerCommand('nomadLens.followLogs', async (node?: { alloc: AllocSummary; task: string }) => {
@@ -813,6 +837,33 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (err) {
         void vscode.window.showErrorMessage(`Snapshot to file failed — ${err}`);
       }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.dashboard', async () => {
+      if (!client) {
+        void vscode.window.showWarningMessage('No cluster configured (nomadLens.clusters).');
+        return;
+      }
+      if (dashPanel) {
+        dashPanel.reveal();
+        await renderDashboardPanel();
+        return;
+      }
+      dashPanel = vscode.window.createWebviewPanel(
+        'nomadLens.dashboard',
+        `Nomad: ${client.clusterName}`,
+        vscode.ViewColumn.Active,
+        { enableScripts: true, retainContextWhenHidden: true }
+      );
+      dashPanel.onDidDispose(() => (dashPanel = undefined), null, context.subscriptions);
+      dashPanel.webview.onDidReceiveMessage(
+        (m) => {
+          if (m?.type === 'refresh') void renderDashboardPanel();
+        },
+        undefined,
+        context.subscriptions
+      );
+      await renderDashboardPanel();
     })
   );
 

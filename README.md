@@ -16,6 +16,7 @@
 ## Features
 
 - **Cluster explorer** — jobs with real health (a `running` job missing allocations shows as **degraded**), allocations with restart counts, tasks, nodes (ready/drain), active deployments. Multi-cluster via settings, one click to switch.
+- **Cluster dashboard** — a webview panel with a job-health donut, the problem list, nodes needing attention, and active deployments with progress bars. Zero-dependency SVG charts, theme-aware, one Refresh away.
 - **Plan diff, repo vs running** — open a `.nomad`/`.hcl` job spec and run *Plan Current Job File*: the spec is parsed server-side and planned against the running job, and the diff opens beside your editor. If the diff contains more than you expected, you know **before** deploying.
 - **Job version history & revert** — every registered version of a job with the diff of what each one changed, and a revert that first plans the old spec against what is running, so you see the rollback before you confirm it (confirmation by typing the job id).
 - **Live task logs** — follow stdout/stderr of any task in an Output channel (streaming, not polling); multiple streams side by side.

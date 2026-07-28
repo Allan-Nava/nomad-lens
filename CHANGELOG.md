@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0
+
+Starts the **v1.1 — Visual UI** milestone.
+
+### Added
+
+- **Cluster dashboard panel** (NOM-23): *Open Cluster Dashboard* (icon in the Nomad view title) opens a webview summarising the active cluster — a job-health donut, the problem-jobs table, nodes needing attention, and active deployments with progress bars, plus a Refresh button. It re-renders on cluster switch. Self-contained, CSP-locked with a per-render nonce, theme-aware via `var(--vscode-*)`, **zero runtime dependencies**. Pure `renderDashboard` in `core/webview/dashboard.ts`, tested (sections, CSP nonce, degraded detection, all-green case).
+- **Zero-dependency SVG chart kit** (NOM-26): pure `donut`, `progressBar`, `sparkline` in `core/webview/charts.ts` — used by the dashboard — returning `<svg>` strings with accessible `<title>`s. Tested for value→geometry, clamping, and empty/NaN handling (no `NaN`, no divide-by-zero).
+
 ## 1.0.0
 
 First stable release. Closes the **v1.0 — Marketplace release** milestone.
