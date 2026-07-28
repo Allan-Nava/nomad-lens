@@ -63,6 +63,7 @@ import { renderMarkdown, slugify } from '../src/core/markdown';
 import { donut, progressBar, sparkline } from '../src/core/webview/charts';
 import { renderDashboard } from '../src/core/webview/dashboard';
 import { renderDiffTree, renderDiffPage } from '../src/core/webview/diff';
+import { renderJobPanel, isAllowedPanelCommand, isAllocPanelCommand } from '../src/core/webview/job';
 import { JobDiff } from '../src/core/api';
 
 // Reference spec used by the integration tests. At module level so it can be
@@ -344,6 +345,31 @@ async function main(): Promise<void> {
     assert.ok(sparkline([]).includes('no data'));
     assert.ok(sparkline([1, 2, 3]).includes('<polyline'));
     assert.ok(!sparkline([NaN, 1]).includes('<polyline'), 'a single finite point is not enough');
+  });
+
+  await test('job panel: renders alloc rows + action buttons; command contract', () => {
+    // message contract
+    assert.ok(isAllowedPanelCommand('nomadLens.stopJob') && isAllowedPanelCommand('nomadLens.restartAlloc'));
+    assert.ok(!isAllowedPanelCommand('nomadLens.somethingElse'), 'allowlist rejects unknown commands');
+    assert.strictEqual(isAllocPanelCommand('nomadLens.restartAlloc'), true);
+    assert.strictEqual(isAllocPanelCommand('nomadLens.stopJob'), false);
+
+    const html = renderJobPanel({
+      job: { id: 'packager', name: 'packager', type: 'service', status: 'running', running: 2, desired: 3, failed: 1 },
+      allocs: [
+        { id: 'aaaa1111bbbb', name: 'packager.web[0]', jobId: 'packager', taskGroup: 'web', clientStatus: 'running', nodeName: 'w1', tasks: ['app'], restarts: 4, oom: true },
+      ],
+      deployment: { id: 'd', jobId: 'packager', status: 'running', description: '', desired: 3, placed: 2, healthy: 1, unhealthy: 0, canaries: 1 },
+      nonce: 'JOBNONCE',
+      cspSource: 'vscode-resource:',
+    });
+    assert.ok(html.includes('nonce-JOBNONCE') && html.includes('Content-Security-Policy'));
+    assert.ok(html.includes('packager'));
+    assert.ok(html.includes('aaaa1111'), 'alloc id shortened');
+    assert.ok(html.includes('⚠') && html.includes('OOM'), 'alloc warnings shown');
+    assert.ok(html.includes('data-cmd="nomadLens.restartAlloc"') && html.includes('data-alloc="aaaa1111bbbb"'));
+    assert.ok(html.includes('data-cmd="nomadLens.stopJob"'));
+    assert.ok(html.includes('deploy') || html.includes('Deployment'), 'deployment section');
   });
 
   await test('renderDiffTree/Page: colour-coded collapsible diff (plan + version)', () => {

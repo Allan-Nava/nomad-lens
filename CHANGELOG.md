@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0
+
+Closes the **v1.1 — Visual UI** milestone.
+
+### Added
+
+- **Job detail panel** (NOM-24): *Open Job Panel* (job context menu) opens a webview with the allocations table (status, node, restarts, OOM flags), the active deployment progress, and action buttons — Restart/Bundle per allocation, Stop/Start/History-Revert/Resource-usage/Why-not-placing at job level. Buttons post messages routed through the **existing commands** via `executeCommand`, so every mutation keeps its typed confirmation (no confirmation logic duplicated in the webview). Pure `renderJobPanel` + an allow-list contract (`isAllowedPanelCommand`/`isAllocPanelCommand`) in `core/webview/job.ts`, tested. CSP-locked with a nonce, theme-aware, zero dependencies.
+
 ## 1.2.0
 
 ### Added

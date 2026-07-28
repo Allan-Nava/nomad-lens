@@ -6,6 +6,7 @@ import * as crypto from 'crypto';
 import { renderDashboard } from './core/webview/dashboard';
 import { renderDiffPage } from './core/webview/diff';
 import { JobDiff } from './core/api';
+import { renderJobPanel, isAllowedPanelCommand, isAllocPanelCommand } from './core/webview/job';
 import {
   ClusterConfig,
   NomadClient,
@@ -325,6 +326,35 @@ export function activate(context: vscode.ExtensionContext): void {
       cspSource: diffPanel.webview.cspSource,
     });
     diffPanel.reveal(vscode.ViewColumn.Beside);
+  };
+
+  // --- Job detail panel (NOM-24) -----------------------------------------------
+  let jobPanel: vscode.WebviewPanel | undefined;
+  let jobPanelId: string | undefined;
+  let jobPanelAllocs: AllocSummary[] = [];
+  const renderJobPanelFor = async (jobId: string) => {
+    if (!client) return;
+    const active = client;
+    try {
+      const [jobs, allocs, deployments] = await Promise.all([
+        active.jobs(),
+        active.allocations(jobId),
+        active.deployments(),
+      ]);
+      const job = jobs.find((j) => j.id === jobId);
+      if (!job || !jobPanel) return;
+      jobPanelAllocs = allocs;
+      jobPanel.title = `Nomad: ${jobId}`;
+      jobPanel.webview.html = renderJobPanel({
+        job,
+        allocs,
+        deployment: deployments.find((d) => d.jobId === jobId),
+        nonce: crypto.randomBytes(16).toString('base64'),
+        cspSource: jobPanel.webview.cspSource,
+      });
+    } catch (err) {
+      void vscode.window.showErrorMessage(`Job panel failed — ${err}`);
+    }
   };
 
   // --- Deployment watch (NOM-2): progress in the status bar + notifications ----
@@ -885,6 +915,43 @@ export function activate(context: vscode.ExtensionContext): void {
         context.subscriptions
       );
       await renderDashboardPanel();
+    }),
+
+    vscode.commands.registerCommand('nomadLens.jobPanel', async (node?: { job: JobSummary }) => {
+      if (!client) {
+        void vscode.window.showWarningMessage('No cluster configured (nomadLens.clusters).');
+        return;
+      }
+      const jobId = node?.job.id ?? (await vscode.window.showInputBox({ prompt: 'Job id' }));
+      if (!jobId) return;
+      jobPanelId = jobId;
+      if (!jobPanel) {
+        jobPanel = vscode.window.createWebviewPanel('nomadLens.jobPanel', `Nomad: ${jobId}`, vscode.ViewColumn.Active, {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+        });
+        jobPanel.onDidDispose(() => (jobPanel = undefined), null, context.subscriptions);
+        jobPanel.webview.onDidReceiveMessage(
+          async (m) => {
+            if (!client || m?.type !== 'action' || typeof m.command !== 'string' || !isAllowedPanelCommand(m.command)) {
+              return;
+            }
+            if (isAllocPanelCommand(m.command)) {
+              const alloc = jobPanelAllocs.find((a) => a.id === m.allocId);
+              if (alloc) await vscode.commands.executeCommand(m.command, { alloc });
+            } else if (jobPanelId) {
+              const job = (await client.jobs()).find((j) => j.id === jobPanelId);
+              if (job) await vscode.commands.executeCommand(m.command, { job });
+            }
+            if (jobPanelId) void renderJobPanelFor(jobPanelId);
+          },
+          undefined,
+          context.subscriptions
+        );
+      } else {
+        jobPanel.reveal();
+      }
+      await renderJobPanelFor(jobId);
     })
   );
 
