@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import { renderDashboard } from './core/webview/dashboard';
+import { renderDiffPage } from './core/webview/diff';
+import { JobDiff } from './core/api';
 import {
   ClusterConfig,
   NomadClient,
@@ -304,6 +306,27 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
 
+  // --- Visual diff panel (NOM-25): plan diff / version diff as a colour tree ---
+  let diffPanel: vscode.WebviewPanel | undefined;
+  const showDiffPanel = (title: string, diff?: JobDiff, extras?: { warnings?: string; failedPlacements?: string[] }) => {
+    if (!diffPanel) {
+      diffPanel = vscode.window.createWebviewPanel('nomadLens.diff', title, vscode.ViewColumn.Beside, {
+        enableScripts: false,
+      });
+      diffPanel.onDidDispose(() => (diffPanel = undefined), null, context.subscriptions);
+    }
+    diffPanel.title = title;
+    diffPanel.webview.html = renderDiffPage({
+      title,
+      diff,
+      warnings: extras?.warnings,
+      failedPlacements: extras?.failedPlacements,
+      nonce: crypto.randomBytes(16).toString('base64'),
+      cspSource: diffPanel.webview.cspSource,
+    });
+    diffPanel.reveal(vscode.ViewColumn.Beside);
+  };
+
   // --- Deployment watch (NOM-2): progress in the status bar + notifications ----
   const deployBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 87);
   context.subscriptions.push(deployBar);
@@ -445,14 +468,10 @@ export function activate(context: vscode.ExtensionContext): void {
       try {
         const job = await client.parseHcl(doc.getText());
         const plan = await client.plan(job);
-        const text = [
-          `# nomad plan — ${path.basename(doc.fileName)} vs cluster ${client.clusterName}`,
-          `# ${new Date().toISOString()}`,
-          '',
-          renderPlanDiff(plan),
-        ].join('\n');
-        const planDoc = await vscode.workspace.openTextDocument({ content: text, language: 'diff' });
-        await vscode.window.showTextDocument(planDoc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
+        showDiffPanel(`Plan — ${path.basename(doc.fileName)} vs ${client.clusterName}`, plan.Diff, {
+          warnings: plan.Warnings,
+          failedPlacements: plan.FailedTGAllocs ? Object.keys(plan.FailedTGAllocs) : undefined,
+        });
       } catch (err) {
         void vscode.window.showErrorMessage(`nomad plan failed — ${err}`);
       }
@@ -647,14 +666,16 @@ export function activate(context: vscode.ExtensionContext): void {
           { placeHolder: `Version history — ${node.job.id} (pick a version to see what it changed)` }
         );
         if (!picked) return;
-        const text = [
-          renderVersionHistory(node.job.id, versions, current),
-          '',
-          renderVersionDiff(node.job.id, picked.v),
-          '',
-        ].join('\n');
-        const doc = await vscode.workspace.openTextDocument({ content: text, language: 'markdown' });
-        await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
+        const historyDoc = await vscode.workspace.openTextDocument({
+          content: renderVersionHistory(node.job.id, versions, current),
+          language: 'markdown',
+        });
+        await vscode.window.showTextDocument(historyDoc, { preview: true });
+        if (picked.v.diffToPrevious) {
+          showDiffPanel(`${node.job.id} — v${picked.v.version} vs v${picked.v.previousVersion}`, picked.v.diffToPrevious);
+        } else {
+          void vscode.window.showInformationMessage(`v${picked.v.version} is the oldest version — nothing to diff.`);
+        }
       } catch (err) {
         void vscode.window.showErrorMessage(`Job history failed — ${err}`);
       }

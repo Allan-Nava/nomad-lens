@@ -62,6 +62,8 @@ import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 import { renderMarkdown, slugify } from '../src/core/markdown';
 import { donut, progressBar, sparkline } from '../src/core/webview/charts';
 import { renderDashboard } from '../src/core/webview/dashboard';
+import { renderDiffTree, renderDiffPage } from '../src/core/webview/diff';
+import { JobDiff } from '../src/core/api';
 
 // Reference spec used by the integration tests. At module level so it can be
 // linted even when `nomad` is absent (integration skipped).
@@ -342,6 +344,55 @@ async function main(): Promise<void> {
     assert.ok(sparkline([]).includes('no data'));
     assert.ok(sparkline([1, 2, 3]).includes('<polyline'));
     assert.ok(!sparkline([NaN, 1]).includes('<polyline'), 'a single finite point is not enough');
+  });
+
+  await test('renderDiffTree/Page: colour-coded collapsible diff (plan + version)', () => {
+    assert.ok(renderDiffTree(undefined).includes('No differences'));
+    assert.ok(renderDiffTree({ Type: 'None', Name: 'x' } as JobDiff).includes('No differences'));
+
+    const jd: JobDiff = {
+      Type: 'Edited',
+      Name: 'demo',
+      Fields: null,
+      Objects: null,
+      TaskGroups: [
+        {
+          Type: 'Edited',
+          Name: 'web',
+          Fields: [{ Type: 'Edited', Name: 'Count', Old: '2', New: '3' }],
+          Objects: null,
+          Tasks: [
+            {
+              Type: 'Edited',
+              Name: 'app',
+              Fields: null,
+              Objects: [
+                { Type: 'Edited', Name: 'Config', Fields: [{ Type: 'Added', Name: 'image', Old: '', New: 'nginx:1.27' }] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const tree = renderDiffTree(jd);
+    assert.ok(tree.includes('group web'), 'group name');
+    assert.ok(tree.includes('task app'), 'task name');
+    assert.ok(tree.includes('Count') && tree.includes('nginx:1.27'), 'field changes');
+    assert.ok(tree.includes('class="o edit"'), 'edited class');
+    assert.ok(tree.includes('f add'), 'added field class');
+
+    const page = renderDiffPage({
+      title: 'Plan — web',
+      diff: jd,
+      nonce: 'N0NCE',
+      cspSource: 'vscode-resource:',
+      warnings: 'be careful',
+      failedPlacements: ['cache'],
+    });
+    assert.ok(page.includes('nonce-N0NCE') && page.includes('Content-Security-Policy'));
+    assert.ok(page.includes('Plan — web'));
+    assert.ok(page.includes('Placement failed for: cache'));
+    assert.ok(page.includes('Warnings: be careful'));
   });
 
   await test('renderDashboard: sections, CSP nonce, problems, healthy case', () => {

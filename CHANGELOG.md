@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+### Added
+
+- **Visual diff panel** (NOM-25): the **plan diff** (*Plan Current Job File*) and the **version diff** (*Job Version History*) now open in a webview as a colour-coded, collapsible tree (added = green, removed = red, changed = orange) grouped by task group → task → object → field, instead of plain text. Placement failures and warnings are shown on top. Pure `renderDiffTree`/`renderDiffPage` in `core/webview/diff.ts` (reusing the existing `JobDiff`), tested — including the no-change case, nested objects, and the CSP nonce. CSP-locked, no scripts (native `<details>`), theme-aware, zero dependencies.
+
 ## 1.1.0
 
 Starts the **v1.1 — Visual UI** milestone.
