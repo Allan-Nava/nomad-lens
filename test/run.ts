@@ -66,7 +66,7 @@ import { renderDiffTree, renderDiffPage } from '../src/core/webview/diff';
 import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, renderResourceGauges, renderVersionList } from '../src/core/webview/job';
 import { renderNodePanel, isAllowedNodePanelCommand } from '../src/core/webview/node';
 import { buildGlobalJobItems } from '../src/core/search';
-import { scaleBody, isValidCount, groupCounts, scaleConfirm } from '../src/core/scale';
+import { scaleBody, isValidCount, groupCounts, scaleConfirm, parseScaleStatus, renderScaleStatus } from '../src/core/scale';
 import { isPeriodic, isParameterized, parameterizedMeta, missingMeta, dispatchBody } from '../src/core/dispatch';
 import { stripAnsi, logLevel, classifyLine, classifyLines, renderLogConsole } from '../src/core/webview/logs';
 import { JobDiff } from '../src/core/api';
@@ -432,6 +432,33 @@ async function main(): Promise<void> {
     const jfull = renderJobPanel({ job: dJob, allocs: [], nonce: 'N', cspSource: '' });
     assert.ok(jfull.includes('id="root"') && jfull.includes("m.type === 'update'"));
     assert.ok(jfull.includes("closest('button[data-cmd]')"), 'delegated clicks survive body swaps');
+  });
+
+  await test('scale status (NOM-37): parse groups/events (ns→ms), report', () => {
+    const groups = parseScaleStatus({
+      TaskGroups: {
+        web: {
+          Desired: 3,
+          Placed: 3,
+          Running: 2,
+          Healthy: 2,
+          Unhealthy: 1,
+          Events: [{ Time: 1_700_000_000_000_000_000, PreviousCount: 2, Count: 3, Message: 'manual scale', Error: false }],
+        },
+        api: { Desired: 1, Placed: 1, Running: 1, Healthy: 1, Unhealthy: 0, Events: null },
+      },
+    });
+    assert.deepStrictEqual(groups.map((g) => g.group), ['api', 'web'], 'sorted by group');
+    const web = groups.find((g) => g.group === 'web')!;
+    assert.strictEqual(web.desired, 3);
+    assert.strictEqual(web.events[0].timeMs, 1_700_000_000_000, 'ns → ms');
+    assert.strictEqual(web.events[0].previous, 2);
+
+    const md = renderScaleStatus('web', groups);
+    assert.ok(md.includes('## web') && md.includes('desired 3 · placed 3 · running 2'));
+    assert.ok(md.includes('2 → 3') && md.includes('manual scale'));
+    assert.ok(md.includes('_No scaling events recorded._'), 'api has no events');
+    assert.ok(renderScaleStatus('x', []).includes('No task groups'));
   });
 
   await test('dispatch/periodic (NOM-35/36): guards, meta model, body', () => {

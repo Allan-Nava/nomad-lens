@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.13.0
+
+Closes the **v1.4 — Scale & dispatch** milestone.
+
+### Added
+
+- **Scaling status & events** (NOM-37): *Scaling Status & Events* (job context menu + a *Scaling status* button in the job panel) reads `GET /v1/job/:id/scale` and renders, per task group, current desired/placed/running/healthy counts and the recent scaling events (when, count change, message, error flag). Pure `parseScaleStatus` (nanosecond→ms, sorted) and `renderScaleStatus` in `core/scale.ts`, tested; new API `scaleStatus`.
+
 ## 1.12.0
 
 ### Added

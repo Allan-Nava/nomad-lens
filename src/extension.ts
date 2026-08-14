@@ -10,7 +10,7 @@ import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanel
 import { renderLogConsole, classifyLines, classifyLine } from './core/webview/logs';
 import { renderNodePanel, isAllowedNodePanelCommand } from './core/webview/node';
 import { buildGlobalJobItems } from './core/search';
-import { groupCounts, isValidCount, scaleConfirm } from './core/scale';
+import { groupCounts, isValidCount, scaleConfirm, parseScaleStatus, renderScaleStatus } from './core/scale';
 import { isParameterized, parameterizedMeta, missingMeta, dispatchBody } from './core/dispatch';
 import {
   ClusterConfig,
@@ -794,6 +794,19 @@ export function activate(context: vscode.ExtensionContext): void {
         tree.refresh();
       } catch (err) {
         void vscode.window.showErrorMessage(`Scale job failed — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.scaleStatus', async (node?: { job: JobSummary }) => {
+      if (!client || !node) return;
+      const active = client;
+      try {
+        const groups = parseScaleStatus(await active.scaleStatus(node.job.id));
+        const md = renderScaleStatus(node.job.id, groups);
+        const doc = await vscode.workspace.openTextDocument({ content: md, language: 'markdown' });
+        await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Scaling status failed — ${err}`);
       }
     }),
 

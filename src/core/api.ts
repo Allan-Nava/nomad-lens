@@ -3,7 +3,7 @@
 // Uses the global fetch available in Node 18+ / the VS Code extension host.
 
 import { aggregateDeployment, DeployTaskGroup } from './deploy';
-import { scaleBody } from './scale';
+import { scaleBody, RawScaleStatus } from './scale';
 import { DispatchBody } from './dispatch';
 import { countActiveAllocs, drainBody, eligibilityBody, stopDrainBody } from './nodes';
 
@@ -284,6 +284,11 @@ export class NomadClient {
   /** Scale a task group's count (NOM-34): mutating, confirmed in the glue. */
   async scaleJob(id: string, group: string, count: number, reason?: string): Promise<void> {
     await this.postVoid(`job/${encodeURIComponent(id)}/scale`, scaleBody(group, count, reason));
+  }
+
+  /** Scaling status + events for a job (NOM-37): GET /v1/job/:id/scale. */
+  async scaleStatus(id: string): Promise<RawScaleStatus> {
+    return this.getJson<RawScaleStatus>(`job/${encodeURIComponent(id)}/scale`);
   }
 
   /** Force a run of a periodic job now (NOM-35). */
