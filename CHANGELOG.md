@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.10.2
+
+### Fixed
+
+- **Flaky integration test `placement diagnostics explain an impossible constraint`** (red in CI, green locally). Two timing assumptions, both in the test harness — the extension itself behaved correctly and reported exactly what the scheduler recorded.
+  - The integration bootstrap waited for `GET /v1/nodes` to answer, which is **not** the same as waiting for a usable cluster: measured on Nomad 1.9.5, the HTTP API answers ~1.5s before the client node has registered, returning `[]`. A job registered in that window is evaluated against an empty cluster, so the scheduler records `NodesEvaluated: 0` with no constraint detail — and the blocked evaluation does **not** regain that detail once the node arrives (verified: still empty 15s later). New `waitForReadyNode` helper, and the readiness check is now a visible, counted test instead of a silent `throw` that would have skipped the whole integration suite.
+  - The placement test then accepted the **first** report that existed, which in that window is the contentless one. It now polls until the report actually carries a constraint reason and fails with the report attached otherwise.
+  - Measured before/after against a real dev agent: registering with no ready node yields `NodesEvaluated=0 ConstraintFiltered=null`; registering after one is ready yields `NodesEvaluated=1 NodesFiltered=1 ConstraintFiltered={"${attr.kernel.name} = plan9":1}` on the first evaluation. Suite run three times in Docker, green each time.
+
 ## 1.10.1
 
 Consolidation — no behaviour change.

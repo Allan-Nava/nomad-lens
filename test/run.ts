@@ -141,6 +141,27 @@ job "lens-noplace" {
 }
 `;
 
+/**
+ * The HTTP API answers ~1.5s before the client node has registered and been
+ * fingerprinted, so waiting for a 200 is not the same as waiting for a usable
+ * cluster: measured on Nomad 1.9.5, `GET /v1/nodes` returns `[]` at that point.
+ * Anything registered in that window is evaluated against an EMPTY cluster —
+ * the scheduler records `NodesEvaluated: 0` and no constraint/dimension detail,
+ * and the blocked evaluation does not regain that detail once the node arrives.
+ * Every scheduling assertion therefore has to wait for a ready node first.
+ */
+async function waitForReadyNode(client: NomadClient, attempts = 150): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      if ((await client.nodes()).some((n) => n.status === 'ready')) return true;
+    } catch {
+      /* API not listening yet */
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return false;
+}
+
 let failures = 0;
 function test(name: string, fn: () => void | Promise<void>): Promise<void> {
   return Promise.resolve()
@@ -1158,17 +1179,12 @@ async function main(): Promise<void> {
     server.on('error', () => {});
 
     const client = new NomadClient({ name: 'dev', address: `http://127.0.0.1:${port}` });
-    let up = false;
-    for (let i = 0; i < 100; i++) {
-      try {
-        await client.nodes();
-        up = true;
-        break;
-      } catch {
-        await new Promise((r) => setTimeout(r, 200));
-      }
-    }
-    if (!up) throw new Error('nomad agent -dev did not start');
+    await test('integration: the dev agent comes up with a ready node', async () => {
+      assert.ok(
+        await waitForReadyNode(client),
+        'the agent answered but never produced a ready node: every scheduling assertion below would run against an empty cluster'
+      );
+    });
 
     await test('integration: parse HCL + register + list jobs', async () => {
       const job = await client.parseHcl(HCL);
@@ -1247,10 +1263,15 @@ async function main(): Promise<void> {
 
     await test('integration: placement diagnostics explain an impossible constraint', async () => {
       await client.registerJob(await client.parseHcl(UNPLACEABLE_HCL));
+      // Wait for the reason, not merely for a report: an evaluation made against a
+      // not-yet-ready cluster carries zero counters, which is a placement failure
+      // but not the one under test. Asserting on the first report that exists is
+      // what made this test flaky in CI.
       let report = null;
-      for (let i = 0; i < 40 && !report; i++) {
+      for (let i = 0; i < 60; i++) {
         report = latestPlacementFailures(await client.evaluations('lens-noplace'));
-        if (!report) await new Promise((r) => setTimeout(r, 250));
+        if (report?.failures.some((f) => f.reasons.some((r) => r.includes('constraint')))) break;
+        await new Promise((r) => setTimeout(r, 250));
       }
       assert.ok(report, 'the scheduler should record a placement failure for lens-noplace');
       const md = renderPlacementReport('lens-noplace', report);
