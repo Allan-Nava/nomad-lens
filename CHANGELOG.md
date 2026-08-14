@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.10.3
+
+Consolidation — hardening from a code-review pass over the webview code.
+
+### Fixed
+
+- **Log console: spurious trailing blank line** (`classifyLines`). A log tail ending in a newline produced a trailing empty line, and an empty/failed `logsTail` (the `.catch(() => '')` path) rendered one blank line instead of an empty console. `classifyLines` now drops the trailing empty element; tested (`'a\nERROR b\n'` → 2 lines, `''` → none).
+
+### Changed
+
+- **`stripAnsi` regex hardened for maintainability**: the ANSI matcher relied on a raw ESC (0x1b) control byte embedded invisibly in the regex literal (and in the test input) — functionally correct but a landmine, and a review flagged it as "missing" precisely because it is invisible. Rewritten as the explicit `` escape in both source and test, with an added assertion that plain bracketed text (`wait [30m] then`) is left untouched. No behaviour change (verified before and after).
+
 ## 1.10.2
 
 ### Fixed

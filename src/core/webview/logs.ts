@@ -4,7 +4,7 @@
 
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | '';
 
-const ANSI = /\[[0-9;]*m/g;
+const ANSI = /\u001b\[[0-9;]*m/g;
 
 export function stripAnsi(s: string): string {
   return s.replace(ANSI, '');
@@ -31,7 +31,11 @@ export function classifyLine(text: string): LogLine {
 }
 
 export function classifyLines(chunk: string): LogLine[] {
-  return chunk.split('\n').map(classifyLine);
+  const lines = chunk.split('\n');
+  // A final newline (or an empty chunk) yields a trailing '' — drop it so the
+  // console has no spurious blank line at the end and '' renders as truly empty.
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
+  return lines.map(classifyLine);
 }
 
 function esc(s: string): string {

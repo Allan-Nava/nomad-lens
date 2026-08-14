@@ -372,16 +372,18 @@ async function main(): Promise<void> {
   });
 
   await test('log console: ANSI strip, level detection, console shell', () => {
-    assert.strictEqual(stripAnsi('[31mred[0m'), 'red');
+    assert.strictEqual(stripAnsi('\u001b[31mred\u001b[0m'), 'red');
     assert.strictEqual(logLevel('2026 ERROR upstream timeout'), 'error');
     assert.strictEqual(logLevel('a warning here'), 'warn');
     assert.strictEqual(logLevel('INFO started'), 'info');
     assert.strictEqual(logLevel('plain line'), '');
     assert.strictEqual(logLevel('zooming around'), '', 'no false positive on substrings');
+    assert.strictEqual(stripAnsi('wait [30m] then'), 'wait [30m] then', 'plain bracketed text is not stripped (ESC-anchored)');
 
-    const cl = classifyLine('[33mWARN disk low[0m');
+    const cl = classifyLine('\u001b[33mWARN disk low\u001b[0m');
     assert.deepStrictEqual(cl, { level: 'warn', text: 'WARN disk low' });
-    assert.strictEqual(classifyLines('a\nERROR b\n').length, 3);
+    assert.strictEqual(classifyLines('a\nERROR b\n').length, 2, 'trailing newline does not add a blank line');
+    assert.deepStrictEqual(classifyLines(''), [], 'empty tail renders no lines');
 
     const html = renderLogConsole({
       title: 'job/app · stdout',
