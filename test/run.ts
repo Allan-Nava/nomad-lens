@@ -64,6 +64,7 @@ import { donut, progressBar, sparkline } from '../src/core/webview/charts';
 import { renderDashboard, renderDashboardBody, parseDashboardMessage } from '../src/core/webview/dashboard';
 import { renderDiffTree, renderDiffPage } from '../src/core/webview/diff';
 import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, renderResourceGauges, renderVersionList } from '../src/core/webview/job';
+import { renderNodePanel, isAllowedNodePanelCommand } from '../src/core/webview/node';
 import { stripAnsi, logLevel, classifyLine, classifyLines, renderLogConsole } from '../src/core/webview/logs';
 import { JobDiff } from '../src/core/api';
 
@@ -405,6 +406,36 @@ async function main(): Promise<void> {
     const jfull = renderJobPanel({ job: dJob, allocs: [], nonce: 'N', cspSource: '' });
     assert.ok(jfull.includes('id="root"') && jfull.includes("m.type === 'update'"));
     assert.ok(jfull.includes("closest('button[data-cmd]')"), 'delegated clicks survive body swaps');
+  });
+
+  await test('node panel (NOM-32): allocations by job, drain-aware actions, allow-list', () => {
+    assert.ok(isAllowedNodePanelCommand('nomadLens.drainNode') && isAllowedNodePanelCommand('nomadLens.toggleEligibility'));
+    assert.ok(!isAllowedNodePanelCommand('nomadLens.stopJob'), 'only node commands allowed');
+
+    const eligible = renderNodePanel({
+      node: { id: 'nnnn1111', name: 'worker-01', status: 'ready', drain: false, eligibility: 'eligible' },
+      allocs: [
+        { id: 'aaaa1111', name: 'web[0]', jobId: 'web', taskGroup: 'web', clientStatus: 'running' },
+        { id: 'aaaa2222', name: 'web[1]', jobId: 'web', taskGroup: 'web', clientStatus: 'running' },
+        { id: 'bbbb1111', name: 'api[0]', jobId: 'api', taskGroup: 'api', clientStatus: 'running' },
+      ],
+      nonce: 'NODENONCE',
+      cspSource: '',
+    });
+    assert.ok(eligible.includes('nonce-NODENONCE') && eligible.includes('worker-01'));
+    assert.ok(eligible.includes('data-cmd="nomadLens.drainNode"'), 'not draining → Drain button');
+    assert.ok(eligible.includes('Make ineligible'), 'eligible → offer make ineligible');
+    assert.ok(eligible.includes('web') && eligible.includes('(2)') && eligible.includes('api'), 'grouped by job with counts');
+
+    const draining = renderNodePanel({
+      node: { id: 'n2', name: 'worker-02', status: 'ready', drain: true, eligibility: 'ineligible', drainRemaining: 3 },
+      allocs: [],
+      nonce: 'N',
+      cspSource: '',
+    });
+    assert.ok(draining.includes('data-cmd="nomadLens.stopDrain"'), 'draining → Stop draining button');
+    assert.ok(draining.includes('3 allocation(s) left'), 'shows drain progress');
+    assert.ok(draining.includes('No active allocations'));
   });
 
   await test('version list (NOM-31): rows, current/stable tags, empty', () => {

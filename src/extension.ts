@@ -8,6 +8,7 @@ import { renderDiffPage } from './core/webview/diff';
 import { JobDiff } from './core/api';
 import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, GaugeTask } from './core/webview/job';
 import { renderLogConsole, classifyLines, classifyLine } from './core/webview/logs';
+import { renderNodePanel, isAllowedNodePanelCommand } from './core/webview/node';
 import {
   ClusterConfig,
   NomadClient,
@@ -158,6 +159,7 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
         item.tooltip = `${n.name} (${n.id})\nstatus: ${n.status} · eligibility: ${n.eligibility}${n.drain ? ' · draining' : ''}`;
         // The context value drives which drain/eligibility commands are offered.
         item.contextValue = `node-${n.drain ? 'draining' : n.eligibility}`;
+        item.command = { command: 'nomadLens.nodePanel', title: 'Open Node Panel', arguments: [node] };
         return item;
       }
       case 'filter': {
@@ -484,6 +486,28 @@ export function activate(context: vscode.ExtensionContext): void {
       });
     } catch {
       /* transient: next tick */
+    }
+  };
+
+  // --- Node detail panel (NOM-32) ----------------------------------------------
+  let nodePanel: vscode.WebviewPanel | undefined;
+  let nodePanelId: string | undefined;
+  const renderNodePanelFor = async (nodeId: string) => {
+    if (!nodePanel || !client) return;
+    const active = client;
+    try {
+      const [nodes, allocs] = await Promise.all([active.nodes(), active.nodeAllocations(nodeId)]);
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node || !nodePanel) return;
+      nodePanel.title = `Node: ${node.name}`;
+      nodePanel.webview.html = renderNodePanel({
+        node,
+        allocs,
+        nonce: crypto.randomBytes(16).toString('base64'),
+        cspSource: nodePanel.webview.cspSource,
+      });
+    } catch (err) {
+      void vscode.window.showErrorMessage(`Node panel failed — ${err}`);
     }
   };
 
@@ -1132,6 +1156,35 @@ export function activate(context: vscode.ExtensionContext): void {
         }
       );
       panel.onDidDispose(() => controller.abort(), null, context.subscriptions);
+    }),
+
+    vscode.commands.registerCommand('nomadLens.nodePanel', async (item?: { node: NodeSummary }) => {
+      if (!client || !item) return;
+      nodePanelId = item.node.id;
+      if (!nodePanel) {
+        nodePanel = vscode.window.createWebviewPanel('nomadLens.nodePanel', `Node: ${item.node.name}`, vscode.ViewColumn.Active, {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+        });
+        nodePanel.onDidDispose(() => (nodePanel = undefined), null, context.subscriptions);
+        nodePanel.webview.onDidReceiveMessage(
+          async (m) => {
+            if (!client || m?.type !== 'action' || typeof m.command !== 'string' || !isAllowedNodePanelCommand(m.command)) {
+              return;
+            }
+            if (nodePanelId) {
+              const node = (await client.nodes()).find((n) => n.id === nodePanelId);
+              if (node) await vscode.commands.executeCommand(m.command, { node });
+              void renderNodePanelFor(nodePanelId);
+            }
+          },
+          undefined,
+          context.subscriptions
+        );
+      } else {
+        nodePanel.reveal();
+      }
+      await renderNodePanelFor(item.node.id);
     })
   );
 

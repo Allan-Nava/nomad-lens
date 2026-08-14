@@ -122,6 +122,14 @@ export interface NodeSummary {
   allocCount?: number;
 }
 
+export interface NodeAlloc {
+  id: string;
+  name: string;
+  jobId: string;
+  taskGroup: string;
+  clientStatus: string;
+}
+
 export interface DeploymentSummary {
   id: string;
   jobId: string;
@@ -281,6 +289,19 @@ export class NomadClient {
       }
     );
     return list;
+  }
+
+  /** Allocations currently on a node (for the node detail panel, NOM-32). */
+  async nodeAllocations(nodeId: string): Promise<NodeAlloc[]> {
+    type Raw = { ID: string; Name: string; JobID: string; TaskGroup: string; ClientStatus: string };
+    const raw = await this.getJson<Raw[]>(`node/${encodeURIComponent(nodeId)}/allocations`);
+    return raw.map((a) => ({
+      id: a.ID,
+      name: a.Name,
+      jobId: a.JobID,
+      taskGroup: a.TaskGroup,
+      clientStatus: a.ClientStatus,
+    }));
   }
 
   // --- node drain / eligibility (NOM-17): mutating, confirmed in the glue -------

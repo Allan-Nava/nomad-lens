@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.0
+
+### Added
+
+- **Node detail panel** (NOM-32): *Open Node Panel* (click a node, or its context menu) opens a webview — node status/eligibility/drain with the remaining-allocations count, the node's allocations grouped by job, and drain-aware action buttons (Drain / Stop draining / toggle eligibility) routed through the existing confirmed commands. Pure `renderNodePanel` + `isAllowedNodePanelCommand` in `core/webview/node.ts`, tested; new API `nodeAllocations`.
+
 ## 1.8.0
 
 Starts the **v1.3 — Panels & navigation** milestone.
