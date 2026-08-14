@@ -5,6 +5,7 @@
 import { JobSummary, AllocSummary, DeploymentSummary } from '../api';
 import { jobHealth, allocWarnings } from '../report';
 import { usageFlag } from '../resources';
+import { JobVersion } from '../versions';
 import { progressBar, sparkline } from './charts';
 
 /** Job-scoped panel commands (invoked with `{ job }`). */
@@ -45,8 +46,24 @@ export interface JobPanelData {
   allocs: AllocSummary[];
   deployment?: DeploymentSummary;
   gauges?: GaugeTask[];
+  versions?: JobVersion[];
+  versionsCurrent?: number;
   nonce: string;
   cspSource: string;
+}
+
+/** Inline version history (NOM-31): the last few versions of the job. */
+export function renderVersionList(versions: JobVersion[], current: number, limit = 8): string {
+  if (!versions.length) return '';
+  const rows = versions
+    .slice(0, limit)
+    .map((v) => {
+      const tags = [v.version === current ? 'current' : '', v.stable ? 'stable' : ''].filter(Boolean).join(' · ');
+      const when = v.submitTimeMs ? new Date(v.submitTimeMs).toISOString().replace('T', ' ').slice(0, 19) : '—';
+      return `<tr><td>v${v.version}</td><td class="mono">${when}</td><td class="muted">${esc(tags)}</td></tr>`;
+    })
+    .join('');
+  return `<table><tr><th>Version</th><th>Submitted (UTC)</th><th></th></tr>${rows}</table>`;
 }
 
 function gaugeRow(label: string, used: number, req: number, unit: string, samples: number[]): string {
@@ -143,6 +160,7 @@ export function renderJobPanelBody(d: JobPanelData): string {
   <div class="actions">${jobBtns}</div>
   ${dep}
   ${d.gauges ? `<h2>Resource usage</h2>${renderResourceGauges(d.gauges)}` : ''}
+  ${d.versions && d.versions.length ? `<h2>Version history</h2>${renderVersionList(d.versions, d.versionsCurrent ?? -1)}` : ''}
   <h2>Allocations</h2>
   <table>
     <tr><th>ID</th><th>Status</th><th>Node</th><th class="num">Restarts</th><th>Actions</th></tr>

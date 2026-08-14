@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.0
+
+Starts the **v1.3 — Panels & navigation** milestone.
+
+### Added
+
+- **Inline version history in the job panel** (NOM-31): the Job Panel now shows the last few job versions (v#, submit time, stable, current) — the refinement deferred from NOM-24 — with the History/Revert flow one click away. Versions are fetched once per full render and cached, so the live ticks stay light. Pure `renderVersionList` in `core/webview/job.ts` (reusing `core/versions.ts`), tested.
+
 ## 1.7.0
 
 Closes the **v1.2 — Live & interactive UI** milestone.

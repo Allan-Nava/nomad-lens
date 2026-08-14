@@ -63,7 +63,7 @@ import { renderMarkdown, slugify } from '../src/core/markdown';
 import { donut, progressBar, sparkline } from '../src/core/webview/charts';
 import { renderDashboard, renderDashboardBody, parseDashboardMessage } from '../src/core/webview/dashboard';
 import { renderDiffTree, renderDiffPage } from '../src/core/webview/diff';
-import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, renderResourceGauges } from '../src/core/webview/job';
+import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, renderResourceGauges, renderVersionList } from '../src/core/webview/job';
 import { stripAnsi, logLevel, classifyLine, classifyLines, renderLogConsole } from '../src/core/webview/logs';
 import { JobDiff } from '../src/core/api';
 
@@ -405,6 +405,19 @@ async function main(): Promise<void> {
     const jfull = renderJobPanel({ job: dJob, allocs: [], nonce: 'N', cspSource: '' });
     assert.ok(jfull.includes('id="root"') && jfull.includes("m.type === 'update'"));
     assert.ok(jfull.includes("closest('button[data-cmd]')"), 'delegated clicks survive body swaps');
+  });
+
+  await test('version list (NOM-31): rows, current/stable tags, empty', () => {
+    assert.strictEqual(renderVersionList([], 0), '', 'no versions → empty');
+    const vs = [
+      { version: 3, stable: true, submitTimeMs: Date.UTC(2026, 0, 2, 3, 4, 5), raw: {}, diffToPrevious: undefined, previousVersion: 2 },
+      { version: 2, stable: false, submitTimeMs: 0, raw: {}, diffToPrevious: undefined, previousVersion: 1 },
+    ];
+    const html = renderVersionList(vs, 3);
+    assert.ok(html.includes('v3') && html.includes('v2'));
+    assert.ok(html.includes('2026-01-02 03:04:05'), 'formats submit time');
+    assert.ok(html.includes('current') && html.includes('stable'), 'v3 tagged current+stable');
+    assert.ok(html.includes('—'), 'unknown submit time → dash');
   });
 
   await test('resource gauges: bars, %, flags, sparkline, empty case', () => {

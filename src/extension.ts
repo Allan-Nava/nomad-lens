@@ -43,7 +43,7 @@ import {
 } from './core/report';
 import { decideVulncheckFix, VULNCHECK_SETTING, VulncheckFixTarget } from './core/vulncheck';
 import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
-import { parseVersions, versionPickItem, renderVersionHistory, renderVersionDiff } from './core/versions';
+import { parseVersions, versionPickItem, renderVersionHistory, renderVersionDiff, JobVersion } from './core/versions';
 import { latestPlacementFailures, placementSummary, renderPlacementReport } from './core/placement';
 import { parseAllocStats, renderResourceUsage, taskRequests, TaskUsage } from './core/resources';
 import { deployStatus, deployStatusBar, deployNotification, isDeployStalled } from './core/deploy';
@@ -368,6 +368,10 @@ export function activate(context: vscode.ExtensionContext): void {
   let jobPanel: vscode.WebviewPanel | undefined;
   let jobPanelId: string | undefined;
   let jobPanelAllocs: AllocSummary[] = [];
+  // Version history is fetched once per full render and cached, so live ticks
+  // (NOM-28) stay light (NOM-31).
+  let jobPanelVersions: JobVersion[] = [];
+  let jobPanelVersionsCurrent = -1;
   // Ring buffer of recent per-task usage samples, keyed by `${jobId}/${task}`,
   // so the sparklines grow across panel refreshes (NOM-29).
   const usageBuffers = new Map<string, { cpu: number[]; mem: number[] }>();
@@ -430,6 +434,13 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!job || !jobPanel) return;
       jobPanelAllocs = allocs;
       const gauges = await collectGauges(jobId, allocs);
+      try {
+        jobPanelVersions = parseVersions(await active.versions(jobId));
+        jobPanelVersionsCurrent = jobPanelVersions[0]?.version ?? -1;
+      } catch {
+        jobPanelVersions = [];
+        jobPanelVersionsCurrent = -1;
+      }
       if (!jobPanel) return;
       jobPanel.title = `Nomad: ${jobId}`;
       jobPanel.webview.html = renderJobPanel({
@@ -437,6 +448,8 @@ export function activate(context: vscode.ExtensionContext): void {
         allocs,
         deployment: deployments.find((d) => d.jobId === jobId),
         gauges,
+        versions: jobPanelVersions,
+        versionsCurrent: jobPanelVersionsCurrent,
         nonce: crypto.randomBytes(16).toString('base64'),
         cspSource: jobPanel.webview.cspSource,
       });
@@ -463,6 +476,8 @@ export function activate(context: vscode.ExtensionContext): void {
           allocs,
           deployment: deployments.find((d) => d.jobId === jobId),
           gauges,
+          versions: jobPanelVersions,
+          versionsCurrent: jobPanelVersionsCurrent,
           nonce: '',
           cspSource: jobPanel.webview.cspSource,
         }),
