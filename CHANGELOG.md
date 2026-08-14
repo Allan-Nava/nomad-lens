@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.12.0
+
+### Added
+
+- **Force a periodic job** (NOM-35): *Force Run* on a periodic job triggers a run now via `POST /v1/job/:id/periodic/force` (confirmed). Offered only on periodic jobs — the tree marks them (`job-periodic` context) and the job panel shows a *Force run* button. New API `forcePeriodic`.
+- **Dispatch a parameterized job** (NOM-36): *Dispatch* on a parameterized job collects the required and optional meta keys (read from the spec) and an optional payload, validates the required ones, and calls `POST /v1/job/:id/dispatch` (payload base64-encoded), reporting the dispatched child id. Offered only on parameterized jobs (`job-parameterized` context + panel button). Pure `isPeriodic`/`isParameterized`/`parameterizedMeta`/`missingMeta`/`dispatchBody` in `core/dispatch.ts`, tested; new API `dispatchJob`. `JobSummary` now carries `periodic`/`parameterized` (from the job list stub).
+
 ## 1.11.0
 
 Starts the **v1.4 — Scale & dispatch** milestone.

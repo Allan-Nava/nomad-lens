@@ -11,6 +11,7 @@ import { renderLogConsole, classifyLines, classifyLine } from './core/webview/lo
 import { renderNodePanel, isAllowedNodePanelCommand } from './core/webview/node';
 import { buildGlobalJobItems } from './core/search';
 import { groupCounts, isValidCount, scaleConfirm } from './core/scale';
+import { isParameterized, parameterizedMeta, missingMeta, dispatchBody } from './core/dispatch';
 import {
   ClusterConfig,
   NomadClient,
@@ -115,7 +116,7 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
         item.id = `job:${node.job.id}`;
         item.description = `${health} · ${node.job.running}/${node.job.desired} alloc${node.job.failed ? ` · ${node.job.failed} failed` : ''}`;
         item.iconPath = new vscode.ThemeIcon(HEALTH_ICON[health] ?? 'question');
-        item.contextValue = 'job';
+        item.contextValue = node.job.periodic ? 'job-periodic' : node.job.parameterized ? 'job-parameterized' : 'job';
         const stuck = this.placementWarn.get(node.job.id);
         if (stuck) {
           item.description = `⚠ cannot place · ${item.description}`;
@@ -793,6 +794,65 @@ export function activate(context: vscode.ExtensionContext): void {
         tree.refresh();
       } catch (err) {
         void vscode.window.showErrorMessage(`Scale job failed — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.forcePeriodic', async (node?: { job: JobSummary }) => {
+      if (!client || !node) return;
+      const ok = await vscode.window.showWarningMessage(
+        `Force a run of periodic job "${node.job.id}" now?`,
+        { modal: true },
+        'Force run'
+      );
+      if (ok !== 'Force run') return;
+      try {
+        await client.forcePeriodic(node.job.id);
+        void vscode.window.showInformationMessage(`Triggered a run of ${node.job.id}.`);
+        tree.refresh();
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Force periodic failed — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.dispatchJob', async (node?: { job: JobSummary }) => {
+      if (!client || !node) return;
+      const active = client;
+      try {
+        const spec = await active.job(node.job.id);
+        if (!isParameterized(spec as Parameters<typeof isParameterized>[0])) {
+          void vscode.window.showWarningMessage(`${node.job.id} is not a parameterized (dispatchable) job.`);
+          return;
+        }
+        const { required, optional } = parameterizedMeta(spec as Parameters<typeof parameterizedMeta>[0]);
+        const meta: Record<string, string> = {};
+        for (const k of required) {
+          const v = await vscode.window.showInputBox({
+            prompt: `Meta "${k}" (required)`,
+            validateInput: (x) => (x ? undefined : 'This meta key is required'),
+          });
+          if (v === undefined) return;
+          meta[k] = v;
+        }
+        for (const k of optional) {
+          const v = await vscode.window.showInputBox({ prompt: `Meta "${k}" (optional — leave empty to skip)` });
+          if (v === undefined) return;
+          if (v !== '') meta[k] = v;
+        }
+        const payload = await vscode.window.showInputBox({ prompt: 'Payload (optional — leave empty to skip)' });
+        if (payload === undefined) return;
+        const missing = missingMeta(required, meta);
+        if (missing.length) {
+          void vscode.window.showWarningMessage(`Missing required meta: ${missing.join(', ')}.`);
+          return;
+        }
+        const ok = await vscode.window.showWarningMessage(`Dispatch "${node.job.id}"?`, { modal: true }, 'Dispatch');
+        if (ok !== 'Dispatch') return;
+        const body = dispatchBody(meta, payload ? Buffer.from(payload, 'utf8').toString('base64') : undefined);
+        const res = await active.dispatchJob(node.job.id, body);
+        void vscode.window.showInformationMessage(`Dispatched ${res.DispatchedJobID ?? node.job.id}.`);
+        tree.refresh();
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Dispatch job failed — ${err}`);
       }
     }),
 

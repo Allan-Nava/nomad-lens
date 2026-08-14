@@ -13,6 +13,8 @@ export const JOB_PANEL_JOB_COMMANDS = [
   'nomadLens.stopJob',
   'nomadLens.startJob',
   'nomadLens.scaleJob',
+  'nomadLens.forcePeriodic',
+  'nomadLens.dispatchJob',
   'nomadLens.revertJob',
   'nomadLens.jobHistory',
   'nomadLens.resourceUsage',
@@ -125,9 +127,13 @@ export function renderJobPanelBody(d: JobPanelData): string {
     btn('nomadLens.resourceUsage', 'Resource usage'),
     btn('nomadLens.explainPlacement', 'Why not placing?'),
     btn('nomadLens.scaleJob', 'Scale…'),
+    d.job.periodic ? btn('nomadLens.forcePeriodic', 'Force run') : '',
+    d.job.parameterized ? btn('nomadLens.dispatchJob', 'Dispatch…') : '',
     btn('nomadLens.stopJob', 'Stop'),
     btn('nomadLens.startJob', 'Start'),
-  ].join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const dep =
     d.deployment && ['running', 'pending', 'paused'].includes(d.deployment.status)

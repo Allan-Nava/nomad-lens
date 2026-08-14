@@ -4,6 +4,7 @@
 
 import { aggregateDeployment, DeployTaskGroup } from './deploy';
 import { scaleBody } from './scale';
+import { DispatchBody } from './dispatch';
 import { countActiveAllocs, drainBody, eligibilityBody, stopDrainBody } from './nodes';
 
 /** Every non-streaming request aborts after this timeout: an unreachable cluster
@@ -96,6 +97,10 @@ export interface JobSummary {
   running: number;
   desired: number;
   failed: number;
+  /** periodic (scheduled) job — offers Force run (NOM-35). */
+  periodic?: boolean;
+  /** parameterized (dispatchable) job — offers Dispatch (NOM-36). */
+  parameterized?: boolean;
 }
 
 export interface AllocSummary {
@@ -191,6 +196,8 @@ export class NomadClient {
       Name: string;
       Type: string;
       Status: string;
+      Periodic?: boolean;
+      ParameterizedJob?: boolean;
       JobSummary?: { Summary?: Record<string, { Running?: number; Failed?: number; Queued?: number; Starting?: number }> };
     };
     const raw = await this.getJson<Raw[]>('jobs');
@@ -204,7 +211,17 @@ export class NomadClient {
         accounted += (s.Running ?? 0) + (s.Queued ?? 0) + (s.Starting ?? 0);
       }
       // Fallback: allocations accounted by the summary (until we have the real Count).
-      return { id: j.ID, name: j.Name, type: j.Type, status: j.Status, running, failed, desired: accounted };
+      return {
+        id: j.ID,
+        name: j.Name,
+        type: j.Type,
+        status: j.Status,
+        running,
+        failed,
+        desired: accounted,
+        periodic: j.Periodic === true,
+        parameterized: j.ParameterizedJob === true,
+      };
     });
 
     // Authoritative desired = sum of the task groups' Count, from the real job. The
@@ -267,6 +284,16 @@ export class NomadClient {
   /** Scale a task group's count (NOM-34): mutating, confirmed in the glue. */
   async scaleJob(id: string, group: string, count: number, reason?: string): Promise<void> {
     await this.postVoid(`job/${encodeURIComponent(id)}/scale`, scaleBody(group, count, reason));
+  }
+
+  /** Force a run of a periodic job now (NOM-35). */
+  async forcePeriodic(id: string): Promise<void> {
+    await this.postVoid(`job/${encodeURIComponent(id)}/periodic/force`, {});
+  }
+
+  /** Dispatch a parameterized job (NOM-36); returns the dispatched child id. */
+  async dispatchJob(id: string, body: DispatchBody): Promise<{ DispatchedJobID?: string }> {
+    return this.postJson(`job/${encodeURIComponent(id)}/dispatch`, body);
   }
 
   async nodes(): Promise<NodeSummary[]> {

@@ -67,6 +67,7 @@ import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanel
 import { renderNodePanel, isAllowedNodePanelCommand } from '../src/core/webview/node';
 import { buildGlobalJobItems } from '../src/core/search';
 import { scaleBody, isValidCount, groupCounts, scaleConfirm } from '../src/core/scale';
+import { isPeriodic, isParameterized, parameterizedMeta, missingMeta, dispatchBody } from '../src/core/dispatch';
 import { stripAnsi, logLevel, classifyLine, classifyLines, renderLogConsole } from '../src/core/webview/logs';
 import { JobDiff } from '../src/core/api';
 
@@ -431,6 +432,22 @@ async function main(): Promise<void> {
     const jfull = renderJobPanel({ job: dJob, allocs: [], nonce: 'N', cspSource: '' });
     assert.ok(jfull.includes('id="root"') && jfull.includes("m.type === 'update'"));
     assert.ok(jfull.includes("closest('button[data-cmd]')"), 'delegated clicks survive body swaps');
+  });
+
+  await test('dispatch/periodic (NOM-35/36): guards, meta model, body', () => {
+    assert.ok(isPeriodic({ Periodic: { Spec: '@daily' } }) && !isPeriodic({}));
+    assert.ok(isParameterized({ ParameterizedJob: {} }) && !isParameterized({ ParameterizedJob: null }));
+
+    const meta = parameterizedMeta({ ParameterizedJob: { MetaRequired: ['env'], MetaOptional: ['note'] } });
+    assert.deepStrictEqual(meta, { required: ['env'], optional: ['note'] });
+    assert.deepStrictEqual(parameterizedMeta({ ParameterizedJob: null }), { required: [], optional: [] });
+
+    assert.deepStrictEqual(missingMeta(['env', 'region'], { env: 'prod' }), ['region'], 'reports missing required');
+    assert.deepStrictEqual(missingMeta(['env'], { env: '' }), ['env'], 'empty counts as missing');
+    assert.deepStrictEqual(missingMeta(['env'], { env: 'prod' }), []);
+
+    assert.deepStrictEqual(dispatchBody({}), {}, 'no meta, no payload → empty body');
+    assert.deepStrictEqual(dispatchBody({ env: 'prod' }, 'Zm9v'), { Meta: { env: 'prod' }, Payload: 'Zm9v' });
   });
 
   await test('scale (NOM-34): body, count validation, group counts, confirm decision', () => {

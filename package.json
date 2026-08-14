@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -135,6 +135,14 @@
         "title": "Nomad Lens: Scale Task Group"
       },
       {
+        "command": "nomadLens.forcePeriodic",
+        "title": "Nomad Lens: Force Run (periodic job)"
+      },
+      {
+        "command": "nomadLens.dispatchJob",
+        "title": "Nomad Lens: Dispatch (parameterized job)"
+      },
+      {
         "command": "nomadLens.explainPlacement",
         "title": "Nomad Lens: Explain Placement Failures"
       },
@@ -242,23 +250,31 @@
         },
         {
           "command": "nomadLens.jobPanel",
-          "when": "view == nomadLens.explorer && viewItem == job"
+          "when": "view == nomadLens.explorer && viewItem =~ /^job/"
         },
         {
           "command": "nomadLens.stopJob",
-          "when": "view == nomadLens.explorer && viewItem == job"
+          "when": "view == nomadLens.explorer && viewItem =~ /^job/"
         },
         {
           "command": "nomadLens.startJob",
-          "when": "view == nomadLens.explorer && viewItem == job"
+          "when": "view == nomadLens.explorer && viewItem =~ /^job/"
         },
         {
           "command": "nomadLens.scaleJob",
-          "when": "view == nomadLens.explorer && viewItem == job"
+          "when": "view == nomadLens.explorer && viewItem =~ /^job/"
+        },
+        {
+          "command": "nomadLens.forcePeriodic",
+          "when": "view == nomadLens.explorer && viewItem == job-periodic"
+        },
+        {
+          "command": "nomadLens.dispatchJob",
+          "when": "view == nomadLens.explorer && viewItem == job-parameterized"
         },
         {
           "command": "nomadLens.explainPlacement",
-          "when": "view == nomadLens.explorer && viewItem == job"
+          "when": "view == nomadLens.explorer && viewItem =~ /^job/"
         },
         {
           "command": "nomadLens.nodePanel",
@@ -278,23 +294,23 @@
         },
         {
           "command": "nomadLens.resourceUsage",
-          "when": "view == nomadLens.explorer && viewItem == job"
+          "when": "view == nomadLens.explorer && viewItem =~ /^job/"
         },
         {
           "command": "nomadLens.jobHistory",
-          "when": "view == nomadLens.explorer && viewItem == job"
+          "when": "view == nomadLens.explorer && viewItem =~ /^job/"
         },
         {
           "command": "nomadLens.revertJob",
-          "when": "view == nomadLens.explorer && viewItem == job"
+          "when": "view == nomadLens.explorer && viewItem =~ /^job/"
         },
         {
           "command": "nomadLens.grepJob",
-          "when": "view == nomadLens.explorer && viewItem == job"
+          "when": "view == nomadLens.explorer && viewItem =~ /^job/"
         },
         {
           "command": "nomadLens.compareClusters",
-          "when": "view == nomadLens.explorer && viewItem == job"
+          "when": "view == nomadLens.explorer && viewItem =~ /^job/"
         }
       ],
       "editor/title/context": [
