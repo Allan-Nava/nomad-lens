@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 import { renderDashboard } from './core/webview/dashboard';
 import { renderDiffPage } from './core/webview/diff';
 import { JobDiff } from './core/api';
-import { renderJobPanel, isAllowedPanelCommand, isAllocPanelCommand } from './core/webview/job';
+import { renderJobPanel, isAllowedPanelCommand, isAllocPanelCommand, GaugeTask } from './core/webview/job';
 import { renderLogConsole, classifyLines, classifyLine } from './core/webview/logs';
 import {
   ClusterConfig,
@@ -333,6 +333,55 @@ export function activate(context: vscode.ExtensionContext): void {
   let jobPanel: vscode.WebviewPanel | undefined;
   let jobPanelId: string | undefined;
   let jobPanelAllocs: AllocSummary[] = [];
+  // Ring buffer of recent per-task usage samples, keyed by `${jobId}/${task}`,
+  // so the sparklines grow across panel refreshes (NOM-29).
+  const usageBuffers = new Map<string, { cpu: number[]; mem: number[] }>();
+  const USAGE_SAMPLES = 30;
+
+  const collectGauges = async (jobId: string, allocs: AllocSummary[]): Promise<GaugeTask[]> => {
+    if (!client) return [];
+    const active = client;
+    const running = allocs.filter((a) => a.clientStatus === 'running');
+    if (!running.length) return [];
+    const requests = taskRequests((await active.job(jobId)) as Parameters<typeof taskRequests>[0]);
+    const perAlloc = await mapPool(running, 8, async (a): Promise<TaskUsage[]> => {
+      try {
+        return parseAllocStats(a.id, await active.allocStats(a.id), requests);
+      } catch {
+        return [];
+      }
+    });
+    const agg = new Map<string, { cpuUsed: number; memUsed: number; cpuReq: number; memReq: number }>();
+    for (const list of perAlloc) {
+      for (const u of list) {
+        const g = agg.get(u.task) ?? { cpuUsed: 0, memUsed: 0, cpuReq: 0, memReq: 0 };
+        g.cpuUsed += u.cpuMhz;
+        g.memUsed += u.memMib;
+        g.cpuReq += u.cpuRequestMhz;
+        g.memReq += u.memRequestMib;
+        agg.set(u.task, g);
+      }
+    }
+    return [...agg.entries()].map(([task, g]) => {
+      const key = `${jobId}/${task}`;
+      const buf = usageBuffers.get(key) ?? { cpu: [], mem: [] };
+      buf.cpu.push(g.cpuUsed);
+      buf.mem.push(g.memUsed);
+      if (buf.cpu.length > USAGE_SAMPLES) buf.cpu.shift();
+      if (buf.mem.length > USAGE_SAMPLES) buf.mem.shift();
+      usageBuffers.set(key, buf);
+      return {
+        task,
+        cpuUsed: g.cpuUsed,
+        cpuReq: g.cpuReq,
+        memUsed: g.memUsed,
+        memReq: g.memReq,
+        cpuSamples: [...buf.cpu],
+        memSamples: [...buf.mem],
+      };
+    });
+  };
+
   const renderJobPanelFor = async (jobId: string) => {
     if (!client) return;
     const active = client;
@@ -345,11 +394,14 @@ export function activate(context: vscode.ExtensionContext): void {
       const job = jobs.find((j) => j.id === jobId);
       if (!job || !jobPanel) return;
       jobPanelAllocs = allocs;
+      const gauges = await collectGauges(jobId, allocs);
+      if (!jobPanel) return;
       jobPanel.title = `Nomad: ${jobId}`;
       jobPanel.webview.html = renderJobPanel({
         job,
         allocs,
         deployment: deployments.find((d) => d.jobId === jobId),
+        gauges,
         nonce: crypto.randomBytes(16).toString('base64'),
         cspSource: jobPanel.webview.cspSource,
       });

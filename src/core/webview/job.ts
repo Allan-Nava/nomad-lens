@@ -4,7 +4,8 @@
 
 import { JobSummary, AllocSummary, DeploymentSummary } from '../api';
 import { jobHealth, allocWarnings } from '../report';
-import { progressBar } from './charts';
+import { usageFlag } from '../resources';
+import { progressBar, sparkline } from './charts';
 
 /** Job-scoped panel commands (invoked with `{ job }`). */
 export const JOB_PANEL_JOB_COMMANDS = [
@@ -27,12 +28,67 @@ export function isAllocPanelCommand(cmd: string): boolean {
   return (JOB_PANEL_ALLOC_COMMANDS as readonly string[]).includes(cmd);
 }
 
+/** Per-task resource usage for the inline gauges (NOM-29), aggregated across the
+ *  job's running allocations. `*Samples` are recent values for the sparkline. */
+export interface GaugeTask {
+  task: string;
+  cpuUsed: number;
+  cpuReq: number;
+  memUsed: number;
+  memReq: number;
+  cpuSamples: number[];
+  memSamples: number[];
+}
+
 export interface JobPanelData {
   job: JobSummary;
   allocs: AllocSummary[];
   deployment?: DeploymentSummary;
+  gauges?: GaugeTask[];
   nonce: string;
   cspSource: string;
+}
+
+function gaugeRow(label: string, used: number, req: number, unit: string, samples: number[]): string {
+  const pct = req > 0 ? ` (${Math.round((used / req) * 100)}%)` : '';
+  return `<div class="grow"><span class="gl">${label}</span>${progressBar(
+    used,
+    req,
+    'var(--vscode-charts-green, #3FE0A8)',
+    140
+  )}<span class="gv">${used}/${req || '—'} ${unit}${pct}</span>${sparkline(samples, 90, 20)}</div>`;
+}
+
+/** Per-task CPU/memory gauges vs requested + a sparkline of recent samples. */
+export function renderResourceGauges(tasks: GaugeTask[]): string {
+  if (!tasks.length) {
+    return `<p class="muted">No statistics — tasks not running, or the client node is unreachable.</p>`;
+  }
+  return tasks
+    .map((t) => {
+      const flag = usageFlag({
+        alloc: '',
+        task: t.task,
+        cpuMhz: t.cpuUsed,
+        memMib: t.memUsed,
+        cpuRequestMhz: t.cpuReq,
+        memRequestMib: t.memReq,
+      });
+      const badge =
+        flag === 'over'
+          ? '<span class="warn">⚠ near limit</span>'
+          : flag === 'under'
+            ? '<span class="muted">💤 oversized</span>'
+            : '';
+      return `<div class="gauge"><div class="gh">${esc(t.task)} ${badge}</div>${gaugeRow(
+        'CPU',
+        t.cpuUsed,
+        t.cpuReq,
+        'MHz',
+        t.cpuSamples
+      )}${gaugeRow('Mem', t.memUsed, t.memReq, 'MiB', t.memSamples)}</div>`;
+    })
+    .join('');
 }
 
 function esc(s: string): string {
@@ -97,6 +153,11 @@ export function renderJobPanel(d: JobPanelData): string {
     .muted { color: var(--vscode-descriptionForeground); }
     .warn { color: var(--vscode-charts-orange, #ff9f43); }
     .depbar { display: flex; align-items: center; gap: 10px; }
+    .gauge { margin: 8px 0 12px; }
+    .gh { font-weight: 600; margin-bottom: 3px; }
+    .grow { display: flex; align-items: center; gap: 10px; font-size: .85rem; margin: 2px 0; }
+    .gl { width: 34px; color: var(--vscode-descriptionForeground); }
+    .gv { min-width: 130px; font-variant-numeric: tabular-nums; }
   `;
   const csp = `default-src 'none'; style-src 'nonce-${d.nonce}'; script-src 'nonce-${d.nonce}'; img-src ${d.cspSource} data:;`;
 
@@ -112,6 +173,7 @@ export function renderJobPanel(d: JobPanelData): string {
   <p class="sub">${esc(health)} · ${d.job.running}/${d.job.desired} allocations${d.job.failed ? ` · ${d.job.failed} failed` : ''}</p>
   <div class="actions">${jobBtns}</div>
   ${dep}
+  ${d.gauges ? `<h2>Resource usage</h2>${renderResourceGauges(d.gauges)}` : ''}
   <h2>Allocations</h2>
   <table>
     <tr><th>ID</th><th>Status</th><th>Node</th><th class="num">Restarts</th><th>Actions</th></tr>

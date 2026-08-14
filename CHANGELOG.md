@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0
+
+### Added
+
+- **Inline resource gauges & sparklines in the job panel** (NOM-29): the *Open Job Panel* webview now shows a Resource-usage section — per-task CPU/memory used-vs-requested bars (with %) plus a sparkline of recent samples, flagged ⚠ near-limit / 💤 oversized. Stats are fetched per running allocation with bounded concurrency and degrade gracefully when a client node is unreachable; samples accumulate in a ring buffer so the sparklines grow across refreshes. Pure `renderResourceGauges` in `core/webview/job.ts` (reusing `core/resources.ts` + `core/webview/charts.ts`), tested.
+
 ## 1.4.0
 
 Starts the **v1.2 — Live & interactive UI** milestone.

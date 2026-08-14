@@ -63,7 +63,7 @@ import { renderMarkdown, slugify } from '../src/core/markdown';
 import { donut, progressBar, sparkline } from '../src/core/webview/charts';
 import { renderDashboard } from '../src/core/webview/dashboard';
 import { renderDiffTree, renderDiffPage } from '../src/core/webview/diff';
-import { renderJobPanel, isAllowedPanelCommand, isAllocPanelCommand } from '../src/core/webview/job';
+import { renderJobPanel, isAllowedPanelCommand, isAllocPanelCommand, renderResourceGauges } from '../src/core/webview/job';
 import { stripAnsi, logLevel, classifyLine, classifyLines, renderLogConsole } from '../src/core/webview/logs';
 import { JobDiff } from '../src/core/api';
 
@@ -369,6 +369,20 @@ async function main(): Promise<void> {
     assert.ok(html.includes('nonce-LOGNONCE') && html.includes('Content-Security-Policy'));
     assert.ok(html.includes('id="filter"') && html.includes('id="follow"') && html.includes('id="wrap"'));
     assert.ok(html.includes('class="ln lvl-error"') && html.includes('ERROR boom'));
+  });
+
+  await test('resource gauges: bars, %, flags, sparkline, empty case', () => {
+    assert.ok(renderResourceGauges([]).includes('No statistics'));
+    const html = renderResourceGauges([
+      { task: 'app', cpuUsed: 120, cpuReq: 100, memUsed: 60, memReq: 64, cpuSamples: [100, 110, 120], memSamples: [50, 55, 60] },
+      { task: 'side', cpuUsed: 5, cpuReq: 100, memUsed: 4, memReq: 64, cpuSamples: [5], memSamples: [4] },
+    ]);
+    assert.ok(html.includes('app') && html.includes('side'));
+    assert.ok(html.includes('120/100 MHz (120%)'), 'cpu gauge value + pct');
+    assert.ok(html.includes('60/64 MiB'), 'mem gauge value');
+    assert.ok(html.includes('⚠ near limit'), 'app mem 60/64 ≥90% flagged over');
+    assert.ok(html.includes('💤 oversized'), 'side mem 4/64 ≤20% flagged under');
+    assert.ok(html.includes('<polyline'), 'sparkline for ≥2 samples');
   });
 
   await test('job panel: renders alloc rows + action buttons; command contract', () => {
