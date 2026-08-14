@@ -3,10 +3,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { renderDashboard } from './core/webview/dashboard';
+import { renderDashboard, renderDashboardBody } from './core/webview/dashboard';
 import { renderDiffPage } from './core/webview/diff';
 import { JobDiff } from './core/api';
-import { renderJobPanel, isAllowedPanelCommand, isAllocPanelCommand, GaugeTask } from './core/webview/job';
+import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, GaugeTask } from './core/webview/job';
 import { renderLogConsole, classifyLines, classifyLine } from './core/webview/logs';
 import {
   ClusterConfig,
@@ -308,6 +308,22 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
 
+  // Live update (NOM-28): swap the dashboard body in place, no full reload.
+  const updateDashboardLive = async () => {
+    if (!dashPanel || !client) return;
+    const active = client;
+    try {
+      const [jobs, nodes, deployments] = await Promise.all([active.jobs(), active.nodes(), active.deployments()]);
+      if (!dashPanel) return;
+      void dashPanel.webview.postMessage({
+        type: 'update',
+        body: renderDashboardBody({ cluster: active.clusterName, jobs, nodes, deployments, nonce: '', cspSource: dashPanel.webview.cspSource }),
+      });
+    } catch {
+      /* transient: next tick */
+    }
+  };
+
   // --- Visual diff panel (NOM-25): plan diff / version diff as a colour tree ---
   let diffPanel: vscode.WebviewPanel | undefined;
   const showDiffPanel = (title: string, diff?: JobDiff, extras?: { warnings?: string; failedPlacements?: string[] }) => {
@@ -409,6 +425,33 @@ export function activate(context: vscode.ExtensionContext): void {
       void vscode.window.showErrorMessage(`Job panel failed — ${err}`);
     }
   };
+  // Live update (NOM-28): swap the job-panel body in place, no full reload.
+  const updateJobPanelLive = async () => {
+    if (!jobPanel || !jobPanelId || !client) return;
+    const active = client;
+    const jobId = jobPanelId;
+    try {
+      const [jobs, allocs, deployments] = await Promise.all([active.jobs(), active.allocations(jobId), active.deployments()]);
+      const job = jobs.find((j) => j.id === jobId);
+      if (!job || !jobPanel) return;
+      jobPanelAllocs = allocs;
+      const gauges = await collectGauges(jobId, allocs);
+      if (!jobPanel) return;
+      void jobPanel.webview.postMessage({
+        type: 'update',
+        body: renderJobPanelBody({
+          job,
+          allocs,
+          deployment: deployments.find((d) => d.jobId === jobId),
+          gauges,
+          nonce: '',
+          cspSource: jobPanel.webview.cspSource,
+        }),
+      });
+    } catch {
+      /* transient: next tick */
+    }
+  };
 
   // --- Deployment watch (NOM-2): progress in the status bar + notifications ----
   const deployBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 87);
@@ -417,6 +460,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const pollDeployments = async () => {
     const cfg = vscode.workspace.getConfiguration('nomadLens');
+    // Live panels (NOM-28): push in-place updates on the same tick, independent
+    // of the deployment watch below.
+    if (client && cfg.get<boolean>('livePanels', true)) {
+      void updateDashboardLive();
+      void updateJobPanelLive();
+    }
     if (!client || !cfg.get<boolean>('deploymentWatch', true)) {
       deployBar.hide();
       return;

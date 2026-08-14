@@ -99,7 +99,8 @@ function btn(cmd: string, label: string, allocId?: string): string {
   return `<button data-cmd="${esc(cmd)}"${allocId ? ` data-alloc="${esc(allocId)}"` : ''}>${esc(label)}</button>`;
 }
 
-export function renderJobPanel(d: JobPanelData): string {
+/** Inner body markup only (no <html>/<head>/<script>) — reused for live updates. */
+export function renderJobPanelBody(d: JobPanelData): string {
   const health = jobHealth(d.job);
   const jobBtns = [
     btn('nomadLens.jobHistory', 'History / Revert'),
@@ -136,40 +137,8 @@ export function renderJobPanel(d: JobPanelData): string {
         .join('')
     : `<tr><td colspan="5" class="muted">No active allocations.</td></tr>`;
 
-  const css = `
-    body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); padding: 0 18px 28px; }
-    h1 { font-size: 1.2rem; margin: 18px 0 2px; }
-    h2 { font-size: 1rem; margin: 22px 0 8px; opacity: .85; }
-    .sub { color: var(--vscode-descriptionForeground); margin: 0 0 12px; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
-    button { font: inherit; color: var(--vscode-button-foreground); background: var(--vscode-button-background);
-      border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
-    button:hover { background: var(--vscode-button-hoverBackground); }
-    table { border-collapse: collapse; width: 100%; font-size: .9rem; margin-top: 4px; }
-    th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--vscode-panel-border); }
-    th { color: var(--vscode-descriptionForeground); }
-    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-    .mono { font-family: var(--vscode-editor-font-family, monospace); }
-    .muted { color: var(--vscode-descriptionForeground); }
-    .warn { color: var(--vscode-charts-orange, #ff9f43); }
-    .depbar { display: flex; align-items: center; gap: 10px; }
-    .gauge { margin: 8px 0 12px; }
-    .gh { font-weight: 600; margin-bottom: 3px; }
-    .grow { display: flex; align-items: center; gap: 10px; font-size: .85rem; margin: 2px 0; }
-    .gl { width: 34px; color: var(--vscode-descriptionForeground); }
-    .gv { min-width: 130px; font-variant-numeric: tabular-nums; }
-  `;
-  const csp = `default-src 'none'; style-src 'nonce-${d.nonce}'; script-src 'nonce-${d.nonce}'; img-src ${d.cspSource} data:;`;
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<meta http-equiv="Content-Security-Policy" content="${csp}"/>
-<style nonce="${d.nonce}">${css}</style>
-</head>
-<body>
-  <h1>${esc(d.job.id)}</h1>
+  return `
+  <h1>${esc(d.job.id)} <span class="live" id="live" title="live"></span></h1>
   <p class="sub">${esc(health)} · ${d.job.running}/${d.job.desired} allocations${d.job.failed ? ` · ${d.job.failed} failed` : ''}</p>
   <div class="actions">${jobBtns}</div>
   ${dep}
@@ -178,12 +147,64 @@ export function renderJobPanel(d: JobPanelData): string {
   <table>
     <tr><th>ID</th><th>Status</th><th>Node</th><th class="num">Restarts</th><th>Actions</th></tr>
     ${rows}
-  </table>
+  </table>`;
+}
+
+const JOB_PANEL_CSS = `
+  body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); padding: 0 18px 28px; }
+  h1 { font-size: 1.2rem; margin: 18px 0 2px; }
+  h2 { font-size: 1rem; margin: 22px 0 8px; opacity: .85; }
+  .sub { color: var(--vscode-descriptionForeground); margin: 0 0 12px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+  button { font: inherit; color: var(--vscode-button-foreground); background: var(--vscode-button-background);
+    border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
+  button:hover { background: var(--vscode-button-hoverBackground); }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; margin-top: 4px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--vscode-panel-border); }
+  th { color: var(--vscode-descriptionForeground); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--vscode-editor-font-family, monospace); }
+  .muted { color: var(--vscode-descriptionForeground); }
+  .warn { color: var(--vscode-charts-orange, #ff9f43); }
+  .depbar { display: flex; align-items: center; gap: 10px; }
+  .gauge { margin: 8px 0 12px; }
+  .gh { font-weight: 600; margin-bottom: 3px; }
+  .grow { display: flex; align-items: center; gap: 10px; font-size: .85rem; margin: 2px 0; }
+  .gl { width: 34px; color: var(--vscode-descriptionForeground); }
+  .gv { min-width: 130px; font-variant-numeric: tabular-nums; }
+  .live { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--vscode-charts-green, #3FE0A8); opacity: 0; vertical-align: middle; }
+  .live.on { opacity: 1; transition: opacity .1s; }
+`;
+
+/** Full webview document. Body in #root so a live update (NOM-28) can swap it in
+ *  place; button clicks use event delegation so they survive the swap. */
+export function renderJobPanel(d: JobPanelData): string {
+  const csp = `default-src 'none'; style-src 'nonce-${d.nonce}'; script-src 'nonce-${d.nonce}'; img-src ${d.cspSource} data:;`;
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="${csp}"/>
+<style nonce="${d.nonce}">${JOB_PANEL_CSS}</style>
+</head>
+<body>
+  <div id="root">${renderJobPanelBody(d)}</div>
   <script nonce="${d.nonce}">
     const vscode = acquireVsCodeApi();
-    for (const b of document.querySelectorAll('button[data-cmd]')) {
-      b.addEventListener('click', () => vscode.postMessage({ type: 'action', command: b.dataset.cmd, allocId: b.dataset.alloc }));
-    }
+    document.addEventListener('click', (e) => {
+      const b = e.target && e.target.closest ? e.target.closest('button[data-cmd]') : null;
+      if (b) vscode.postMessage({ type: 'action', command: b.dataset.cmd, allocId: b.dataset.alloc });
+    });
+    window.addEventListener('message', (e) => {
+      const m = e.data;
+      if (m && m.type === 'update' && typeof m.body === 'string') {
+        const y = window.scrollY;
+        document.getElementById('root').innerHTML = m.body;
+        window.scrollTo(0, y);
+        const live = document.getElementById('live');
+        if (live) { live.classList.add('on'); setTimeout(() => live.classList.remove('on'), 700); }
+      }
+    });
   </script>
 </body>
 </html>`;

@@ -61,9 +61,9 @@ import { summarizeJob, compareJobSpecs, renderComparison, jobImages, renderImage
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 import { renderMarkdown, slugify } from '../src/core/markdown';
 import { donut, progressBar, sparkline } from '../src/core/webview/charts';
-import { renderDashboard } from '../src/core/webview/dashboard';
+import { renderDashboard, renderDashboardBody } from '../src/core/webview/dashboard';
 import { renderDiffTree, renderDiffPage } from '../src/core/webview/diff';
-import { renderJobPanel, isAllowedPanelCommand, isAllocPanelCommand, renderResourceGauges } from '../src/core/webview/job';
+import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, renderResourceGauges } from '../src/core/webview/job';
 import { stripAnsi, logLevel, classifyLine, classifyLines, renderLogConsole } from '../src/core/webview/logs';
 import { JobDiff } from '../src/core/api';
 
@@ -369,6 +369,24 @@ async function main(): Promise<void> {
     assert.ok(html.includes('nonce-LOGNONCE') && html.includes('Content-Security-Policy'));
     assert.ok(html.includes('id="filter"') && html.includes('id="follow"') && html.includes('id="wrap"'));
     assert.ok(html.includes('class="ln lvl-error"') && html.includes('ERROR boom'));
+  });
+
+  await test('live panels (NOM-28): body renderers vs full document + #root/update wiring', () => {
+    const dJob: JobSummary = { id: 'web', name: 'web', type: 'service', status: 'running', running: 1, desired: 2, failed: 0 };
+    const body = renderDashboardBody({ cluster: 'prod', jobs: [dJob], nodes: [], deployments: [], nonce: '', cspSource: '' });
+    // the body is inner markup only — no document scaffolding
+    assert.ok(!body.includes('<!doctype') && !body.includes('<script'));
+    assert.ok(body.includes('Nomad · prod') && body.includes('id="live"'));
+    // the full document wraps the body in #root and carries the update handler
+    const full = renderDashboard({ cluster: 'prod', jobs: [dJob], nodes: [], deployments: [], nonce: 'N', cspSource: '' });
+    assert.ok(full.includes('<!doctype html>') && full.includes('id="root"'));
+    assert.ok(full.includes("m.type === 'update'"), 'live update handler present');
+
+    const jbody = renderJobPanelBody({ job: dJob, allocs: [], nonce: '', cspSource: '' });
+    assert.ok(!jbody.includes('<!doctype') && jbody.includes('data-cmd="nomadLens.stopJob"'));
+    const jfull = renderJobPanel({ job: dJob, allocs: [], nonce: 'N', cspSource: '' });
+    assert.ok(jfull.includes('id="root"') && jfull.includes("m.type === 'update'"));
+    assert.ok(jfull.includes("closest('button[data-cmd]')"), 'delegated clicks survive body swaps');
   });
 
   await test('resource gauges: bars, %, flags, sparkline, empty case', () => {

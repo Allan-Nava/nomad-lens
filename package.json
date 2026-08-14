@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -344,6 +344,11 @@
           "default": 90,
           "minimum": 10,
           "description": "If a running deployment does not progress (healthy unchanged) for this long, it is reported as stalled."
+        },
+        "nomadLens.livePanels": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-refresh the dashboard and job panels on each deployment poll tick (in place, no reload)."
         },
         "nomadLens.snapshotPath": {
           "type": "string",

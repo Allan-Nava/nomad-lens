@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0
+
+### Added
+
+- **Live panels** (NOM-28): the dashboard and job panels now refresh on each deployment-poll tick by swapping their `#root` body in place — no page reload, scroll preserved, a small "live" pulse on update — with a `nomadLens.livePanels` opt-out. The renderers are split into pure `renderDashboardBody`/`renderJobPanelBody` (inner markup) plus a full-document shell; panel buttons use event delegation so they keep working across in-place swaps. Tested.
+
 ## 1.5.0
 
 ### Added
