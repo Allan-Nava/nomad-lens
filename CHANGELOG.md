@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.0
+
+Closes the **v1.3 — Panels & navigation** milestone.
+
+### Added
+
+- **Global job search** (NOM-33): *Search Jobs Across All Clusters* (search icon in the view title) lists every job from every configured cluster in a QuickPick — fuzzy on the name, with cluster/health in the description — and on pick switches to that cluster and opens the job panel. Pure `buildGlobalJobItems` in `core/search.ts`, tested. The cluster switch is now a shared `switchCluster` helper reused by Select Cluster.
+
 ## 1.9.0
 
 ### Added

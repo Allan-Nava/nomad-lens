@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -69,6 +69,11 @@
       {
         "command": "nomadLens.selectCluster",
         "title": "Nomad Lens: Select Cluster"
+      },
+      {
+        "command": "nomadLens.globalSearch",
+        "title": "Nomad Lens: Search Jobs Across All Clusters",
+        "icon": "$(search)"
       },
       {
         "command": "nomadLens.filterJobs",
@@ -197,6 +202,11 @@
         },
         {
           "command": "nomadLens.dashboard",
+          "when": "view == nomadLens.explorer",
+          "group": "navigation"
+        },
+        {
+          "command": "nomadLens.globalSearch",
           "when": "view == nomadLens.explorer",
           "group": "navigation"
         },

@@ -65,6 +65,7 @@ import { renderDashboard, renderDashboardBody, parseDashboardMessage } from '../
 import { renderDiffTree, renderDiffPage } from '../src/core/webview/diff';
 import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, renderResourceGauges, renderVersionList } from '../src/core/webview/job';
 import { renderNodePanel, isAllowedNodePanelCommand } from '../src/core/webview/node';
+import { buildGlobalJobItems } from '../src/core/search';
 import { stripAnsi, logLevel, classifyLine, classifyLines, renderLogConsole } from '../src/core/webview/logs';
 import { JobDiff } from '../src/core/api';
 
@@ -406,6 +407,22 @@ async function main(): Promise<void> {
     const jfull = renderJobPanel({ job: dJob, allocs: [], nonce: 'N', cspSource: '' });
     assert.ok(jfull.includes('id="root"') && jfull.includes("m.type === 'update'"));
     assert.ok(jfull.includes("closest('button[data-cmd]')"), 'delegated clicks survive body swaps');
+  });
+
+  await test('global search (NOM-33): flatten + sort jobs across clusters', () => {
+    const mk = (id: string): JobSummary => ({ id, name: id, type: 'service', status: 'running', running: 1, desired: 2, failed: 0 });
+    const items = buildGlobalJobItems([
+      { cluster: 'prod', jobs: [mk('web'), mk('api')] },
+      { cluster: 'dev', jobs: [mk('web')] },
+    ]);
+    // sorted by cluster then id: dev/web, prod/api, prod/web
+    assert.deepStrictEqual(
+      items.map((i) => `${i.cluster}/${i.jobId}`),
+      ['dev/web', 'prod/api', 'prod/web']
+    );
+    assert.ok(items[0].description.includes('dev') && items[0].description.includes('1/2'), 'description carries cluster + counts');
+    assert.strictEqual(items[1].label, 'api');
+    assert.deepStrictEqual(buildGlobalJobItems([]), []);
   });
 
   await test('node panel (NOM-32): allocations by job, drain-aware actions, allow-list', () => {

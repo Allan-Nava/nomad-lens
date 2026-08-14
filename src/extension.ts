@@ -9,6 +9,7 @@ import { JobDiff } from './core/api';
 import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, GaugeTask } from './core/webview/job';
 import { renderLogConsole, classifyLines, classifyLine } from './core/webview/logs';
 import { renderNodePanel, isAllowedNodePanelCommand } from './core/webview/node';
+import { buildGlobalJobItems } from './core/search';
 import {
   ClusterConfig,
   NomadClient,
@@ -570,6 +571,19 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push({ dispose: () => clearInterval(deployTimer) });
   void pollDeployments();
 
+  // Switch the active cluster (shared by Select Cluster and Global Search).
+  const switchCluster = (cfg: ClusterConfig) => {
+    stopAllStreams();
+    deployState.clear();
+    deployBar.hide();
+    client = new NomadClient(cfg);
+    warnIfInsecureToken(cfg);
+    updateStatus();
+    tree.refresh();
+    void pollDeployments();
+    void renderDashboardPanel();
+  };
+
   context.subscriptions.push(
     vscode.commands.registerCommand('nomadLens.refresh', () => tree.refresh()),
 
@@ -604,15 +618,7 @@ export function activate(context: vscode.ExtensionContext): void {
         { placeHolder: 'Nomad cluster' }
       );
       if (!picked) return;
-      stopAllStreams();
-      deployState.clear();
-      deployBar.hide();
-      client = new NomadClient(picked.c);
-      warnIfInsecureToken(picked.c);
-      updateStatus();
-      tree.refresh();
-      void pollDeployments();
-      void renderDashboardPanel();
+      switchCluster(picked.c);
     }),
 
     vscode.commands.registerCommand('nomadLens.followLogs', async (node?: { alloc: AllocSummary; task: string }) => {
@@ -1185,6 +1191,41 @@ export function activate(context: vscode.ExtensionContext): void {
         nodePanel.reveal();
       }
       await renderNodePanelFor(item.node.id);
+    }),
+
+    vscode.commands.registerCommand('nomadLens.globalSearch', async () => {
+      const all = clusters();
+      if (!all.length) {
+        void vscode.window.showWarningMessage('No cluster configured (nomadLens.clusters).');
+        return;
+      }
+      const perCluster = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'Nomad Lens: searching all clusters…' },
+        async () =>
+          Promise.all(
+            all.map(async (c) => {
+              try {
+                return { cluster: c.name, jobs: await new NomadClient(c).jobs() };
+              } catch {
+                return { cluster: c.name, jobs: [] as JobSummary[] };
+              }
+            })
+          )
+      );
+      const items = buildGlobalJobItems(perCluster);
+      if (!items.length) {
+        void vscode.window.showInformationMessage('No jobs found across the configured clusters.');
+        return;
+      }
+      const picked = await vscode.window.showQuickPick(
+        items.map((i) => ({ label: i.label, description: i.description, i })),
+        { placeHolder: 'Search jobs across all clusters', matchOnDescription: true }
+      );
+      if (!picked) return;
+      const cfg = all.find((c) => c.name === picked.i.cluster);
+      if (!cfg) return;
+      switchCluster(cfg);
+      await vscode.commands.executeCommand('nomadLens.jobPanel', { job: { id: picked.i.jobId } });
     })
   );
 
