@@ -250,6 +250,10 @@ Every command is prefixed with `Nomad Lens:` in the Command Palette. "Where" say
 | Command | Where | What it does |
 |---|---|---|
 | Refresh | view title | Reloads the tree. |
+| Open Cluster Dashboard | view title | Cluster health dashboard webview (§23). |
+| Search Jobs Across All Clusters | view title | Global job QuickPick → switch cluster + open the job panel (§23). |
+| Open Job Panel | job | Job detail webview: allocations, gauges, versions, actions (§23). |
+| Open Node Panel | node | Node detail webview: allocations by job, drain/eligibility (§23). |
 | Select Cluster | status bar | Switches the active cluster; stops open log streams. |
 | Filter Jobs by Name | view title | Substring filter on the job id (§3). |
 | Show Problem Jobs Only (toggle) | view title | Keeps only unhealthy jobs (§3). |
@@ -259,6 +263,7 @@ Every command is prefixed with `Nomad Lens:` in the Command Palette. "Where" say
 | Revert Job to a Previous Version | job | Rollback with a plan preview, typed confirmation (§5). |
 | Explain Placement Failures | job | Why the scheduler cannot place it (§6). |
 | Follow Task Logs | task | Streams `stdout`/`stderr` (§7). |
+| Open Log Console | task | Webview log viewer: level colours, live filter, follow/wrap (§23). |
 | Stop Following Logs | palette | Stops one open stream. |
 | Grep Logs Across Allocations | job | Searches every allocation's logs (§8). |
 | Export Incident Bundle for Allocation | allocation | Incident folder with report and logs (§9). |
@@ -282,6 +287,7 @@ Every command is prefixed with `Nomad Lens:` in the Command Palette. "Where" say
 | `nomadLens.deploymentWatch` | boolean | `true` | Watch active deployments (§12). |
 | `nomadLens.deploymentPollSeconds` | number | `5` | Deployment polling interval; minimum 2. |
 | `nomadLens.deploymentStallSeconds` | number | `90` | A running deployment with an unchanged healthy count for this long is reported as stalled; minimum 10. |
+| `nomadLens.livePanels` | boolean | `true` | Auto-refresh the dashboard and job panels on each poll tick, in place (§23). |
 | `nomadLens.snapshotPath` | string | `""` | Where *Save Cluster Snapshot to File* writes (§16). Folder, or an exact `.md` path; `~` supported. |
 | `nomadLens.autoFixGoVulncheck` | boolean | `true` | The Go extension fix in §20. |
 | `nomadLens.goVulncheckFixValue` | string | `"Off"` | `"Off"` or `"Imports"` (§20). |
@@ -317,3 +323,16 @@ This has nothing to do with Nomad — it is here because it breaks the editor of
 - Most commands are read-only. The mutating ones (restart allocation, stop/start/revert job, node drain and eligibility) always require an explicit confirmation and never have a default button; the most destructive ones require typing the target's name.
 - Use `https://` for remote clusters: over `http://` the ACL token would travel in cleartext, and the extension warns you when that would happen.
 - Error bodies from the cluster are truncated before being shown, so raw output is not spilled into notifications.
+
+## 23. Visual panels, live UI and global search
+
+Beyond the tree and the markdown reports, Nomad Lens has webview panels — dark-theme, zero-dependency, CSP-locked, and (where relevant) live.
+
+- **Cluster dashboard** (view title, `$(dashboard)`): a job-health donut, the problem list, node drain/eligibility, and active deployments with progress bars. Click a problem job to reveal it in the tree and open its panel. Refreshes on the deployment poll.
+- **Job panel** (job → *Open Job Panel*): the allocations table (status, node, restarts, OOM), inline resource gauges + sparklines vs requested, deployment progress, version history, and action buttons (restart / stop / start / revert / resource usage / why-not-placing) that go through the same confirmations as the tree commands.
+- **Node panel** (click a node): status / eligibility / drain with the remaining count, allocations grouped by job, and drain / eligibility buttons.
+- **Log console** (task → *Open Log Console*): a log viewer with level colouring, a live filter, and follow / wrap toggles — seeded with the tail and streamed live.
+- **Visual diff**: the plan diff (§4) and the version diff (§5) open as a colour-coded, collapsible tree (added / removed / changed).
+- **Global search** (view title, `$(search)` — *Search Jobs Across All Clusters*): one QuickPick over every job of every configured cluster; pick one to switch cluster and open its job panel.
+
+The dashboard and job panels update in place on each deployment-poll tick (a small "live" pulse); turn it off with `nomadLens.livePanels`.

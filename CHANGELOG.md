@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.1
+
+Consolidation — no behaviour change.
+
+### Changed
+
+- Documentation caught up with the v1.1–v1.3 UI: `docs/GUIDE.md` gains **§23 Visual panels, live UI and global search** (dashboard, job/node panels, log console, visual diff, live panels, global search), and the command and settings references list the new commands and `nomadLens.livePanels`. Existing section numbers and the landing-page anchors are unchanged. README features updated. Verified: full suite (unit + integration) green in Docker, `npm run site` builds the guide, `vsce package` clean.
+
 ## 1.10.0
 
 Closes the **v1.3 — Panels & navigation** milestone.
