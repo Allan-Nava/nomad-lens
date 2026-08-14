@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.11.0
+
+Starts the **v1.4 — Scale & dispatch** milestone.
+
+### Added
+
+- **Scale a task group** (NOM-34): *Scale Task Group* (job context menu and a *Scale…* button in the job panel) sets a task group's `count` via `POST /v1/job/:id/scale`. It picks the group (if more than one), takes the new count (validated as a non-negative integer), and shows the delta before asking — a scale-**down** that removes allocations requires a second confirmation. Pure `scaleBody`/`isValidCount`/`groupCounts`/`scaleConfirm` in `core/scale.ts`, tested; new API `scaleJob`.
+
 ## 1.10.3
 
 Consolidation — hardening from a code-review pass over the webview code.

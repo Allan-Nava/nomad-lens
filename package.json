@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "1.10.3",
+  "version": "1.11.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -131,6 +131,10 @@
         "title": "Nomad Lens: Start Job"
       },
       {
+        "command": "nomadLens.scaleJob",
+        "title": "Nomad Lens: Scale Task Group"
+      },
+      {
         "command": "nomadLens.explainPlacement",
         "title": "Nomad Lens: Explain Placement Failures"
       },
@@ -246,6 +250,10 @@
         },
         {
           "command": "nomadLens.startJob",
+          "when": "view == nomadLens.explorer && viewItem == job"
+        },
+        {
+          "command": "nomadLens.scaleJob",
           "when": "view == nomadLens.explorer && viewItem == job"
         },
         {

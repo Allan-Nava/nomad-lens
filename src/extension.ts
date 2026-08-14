@@ -10,6 +10,7 @@ import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanel
 import { renderLogConsole, classifyLines, classifyLine } from './core/webview/logs';
 import { renderNodePanel, isAllowedNodePanelCommand } from './core/webview/node';
 import { buildGlobalJobItems } from './core/search';
+import { groupCounts, isValidCount, scaleConfirm } from './core/scale';
 import {
   ClusterConfig,
   NomadClient,
@@ -749,6 +750,49 @@ export function activate(context: vscode.ExtensionContext): void {
         tree.refresh();
       } catch (err) {
         void vscode.window.showErrorMessage(`Start job failed — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.scaleJob', async (node?: { job: JobSummary }) => {
+      if (!client || !node) return;
+      const active = client;
+      try {
+        const groups = groupCounts((await active.job(node.job.id)) as Parameters<typeof groupCounts>[0]);
+        if (!groups.length) {
+          void vscode.window.showWarningMessage(`${node.job.id} has no task groups to scale.`);
+          return;
+        }
+        const picked =
+          groups.length === 1
+            ? groups[0]
+            : (
+                await vscode.window.showQuickPick(
+                  groups.map((g) => ({ label: g.group, description: `count ${g.count}`, g })),
+                  { placeHolder: `Which task group of ${node.job.id}?` }
+                )
+              )?.g;
+        if (!picked) return;
+        const input = await vscode.window.showInputBox({
+          prompt: `New count for "${picked.group}" (current ${picked.count})`,
+          value: String(picked.count),
+          validateInput: (v) => (isValidCount(Number(v)) ? undefined : 'A non-negative integer'),
+        });
+        if (input === undefined) return;
+        const target = Number(input);
+        if (!isValidCount(target) || target === picked.count) return;
+
+        const dec = scaleConfirm(picked.group, picked.count, target);
+        const first = await vscode.window.showWarningMessage(dec.message, { modal: true }, 'Scale');
+        if (first !== 'Scale') return;
+        if (dec.destructive) {
+          const second = await vscode.window.showWarningMessage(`Confirm scale-down? ${dec.message}`, { modal: true }, 'Yes, scale down');
+          if (second !== 'Yes, scale down') return;
+        }
+        await active.scaleJob(node.job.id, picked.group, target, 'Scaled via Nomad Lens');
+        void vscode.window.showInformationMessage(`Scaled ${node.job.id} "${picked.group}" to ${target}.`);
+        tree.refresh();
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Scale job failed — ${err}`);
       }
     }),
 

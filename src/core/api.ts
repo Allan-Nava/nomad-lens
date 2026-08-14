@@ -3,6 +3,7 @@
 // Uses the global fetch available in Node 18+ / the VS Code extension host.
 
 import { aggregateDeployment, DeployTaskGroup } from './deploy';
+import { scaleBody } from './scale';
 import { countActiveAllocs, drainBody, eligibilityBody, stopDrainBody } from './nodes';
 
 /** Every non-streaming request aborts after this timeout: an unreachable cluster
@@ -261,6 +262,11 @@ export class NomadClient {
   /** Full job spec JSON (TaskGroups/Tasks/Config/Env/Resources). */
   async job(id: string): Promise<Record<string, unknown>> {
     return this.getJson(`job/${encodeURIComponent(id)}`);
+  }
+
+  /** Scale a task group's count (NOM-34): mutating, confirmed in the glue. */
+  async scaleJob(id: string, group: string, count: number, reason?: string): Promise<void> {
+    await this.postVoid(`job/${encodeURIComponent(id)}/scale`, scaleBody(group, count, reason));
   }
 
   async nodes(): Promise<NodeSummary[]> {

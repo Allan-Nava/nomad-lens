@@ -12,6 +12,7 @@ import { progressBar, sparkline } from './charts';
 export const JOB_PANEL_JOB_COMMANDS = [
   'nomadLens.stopJob',
   'nomadLens.startJob',
+  'nomadLens.scaleJob',
   'nomadLens.revertJob',
   'nomadLens.jobHistory',
   'nomadLens.resourceUsage',
@@ -123,6 +124,7 @@ export function renderJobPanelBody(d: JobPanelData): string {
     btn('nomadLens.jobHistory', 'History / Revert'),
     btn('nomadLens.resourceUsage', 'Resource usage'),
     btn('nomadLens.explainPlacement', 'Why not placing?'),
+    btn('nomadLens.scaleJob', 'Scale…'),
     btn('nomadLens.stopJob', 'Stop'),
     btn('nomadLens.startJob', 'Start'),
   ].join(' ');

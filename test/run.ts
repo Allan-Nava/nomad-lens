@@ -66,6 +66,7 @@ import { renderDiffTree, renderDiffPage } from '../src/core/webview/diff';
 import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, renderResourceGauges, renderVersionList } from '../src/core/webview/job';
 import { renderNodePanel, isAllowedNodePanelCommand } from '../src/core/webview/node';
 import { buildGlobalJobItems } from '../src/core/search';
+import { scaleBody, isValidCount, groupCounts, scaleConfirm } from '../src/core/scale';
 import { stripAnsi, logLevel, classifyLine, classifyLines, renderLogConsole } from '../src/core/webview/logs';
 import { JobDiff } from '../src/core/api';
 
@@ -430,6 +431,27 @@ async function main(): Promise<void> {
     const jfull = renderJobPanel({ job: dJob, allocs: [], nonce: 'N', cspSource: '' });
     assert.ok(jfull.includes('id="root"') && jfull.includes("m.type === 'update'"));
     assert.ok(jfull.includes("closest('button[data-cmd]')"), 'delegated clicks survive body swaps');
+  });
+
+  await test('scale (NOM-34): body, count validation, group counts, confirm decision', () => {
+    assert.deepStrictEqual(scaleBody('web', 3), { Count: 3, Target: { Group: 'web' } });
+    assert.deepStrictEqual(scaleBody('web', 0, 'drain'), { Count: 0, Target: { Group: 'web' }, Message: 'drain' });
+
+    assert.ok(isValidCount(0) && isValidCount(5));
+    assert.ok(!isValidCount(-1) && !isValidCount(2.5) && !isValidCount(NaN));
+
+    assert.deepStrictEqual(groupCounts({ TaskGroups: [{ Name: 'web', Count: 3 }, { Name: 'api', Count: 1 }] }), [
+      { group: 'web', count: 3 },
+      { group: 'api', count: 1 },
+    ]);
+    assert.deepStrictEqual(groupCounts({ TaskGroups: null }), []);
+
+    const up = scaleConfirm('web', 2, 5);
+    assert.strictEqual(up.destructive, false);
+    assert.ok(up.message.includes('2 → 5') && up.message.includes('+3'));
+    const down = scaleConfirm('web', 5, 2);
+    assert.strictEqual(down.destructive, true);
+    assert.ok(down.message.includes('removes 3 allocation'));
   });
 
   await test('global search (NOM-33): flatten + sort jobs across clusters', () => {
