@@ -61,7 +61,7 @@ import { summarizeJob, compareJobSpecs, renderComparison, jobImages, renderImage
 import { decideVulncheckFix, VulncheckState } from '../src/core/vulncheck';
 import { renderMarkdown, slugify } from '../src/core/markdown';
 import { donut, progressBar, sparkline } from '../src/core/webview/charts';
-import { renderDashboard, renderDashboardBody } from '../src/core/webview/dashboard';
+import { renderDashboard, renderDashboardBody, parseDashboardMessage } from '../src/core/webview/dashboard';
 import { renderDiffTree, renderDiffPage } from '../src/core/webview/diff';
 import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, renderResourceGauges } from '../src/core/webview/job';
 import { stripAnsi, logLevel, classifyLine, classifyLines, renderLogConsole } from '../src/core/webview/logs';
@@ -369,6 +369,24 @@ async function main(): Promise<void> {
     assert.ok(html.includes('nonce-LOGNONCE') && html.includes('Content-Security-Policy'));
     assert.ok(html.includes('id="filter"') && html.includes('id="follow"') && html.includes('id="wrap"'));
     assert.ok(html.includes('class="ln lvl-error"') && html.includes('ERROR boom'));
+  });
+
+  await test('dashboard drill-down (NOM-30): clickable job + message parser', () => {
+    const html = renderDashboardBody({
+      cluster: 'prod',
+      jobs: [{ id: 'api', name: 'api', type: 'service', status: 'running', running: 1, desired: 3, failed: 0 }],
+      nodes: [],
+      deployments: [],
+      nonce: '',
+      cspSource: '',
+    });
+    assert.ok(html.includes('data-job="api"'), 'problem job is a drill-down link');
+
+    assert.deepStrictEqual(parseDashboardMessage({ type: 'refresh' }), { type: 'refresh' });
+    assert.deepStrictEqual(parseDashboardMessage({ type: 'open', jobId: 'api' }), { type: 'open', jobId: 'api' });
+    assert.strictEqual(parseDashboardMessage({ type: 'open' }), null, 'open needs a jobId');
+    assert.strictEqual(parseDashboardMessage({ type: 'evil' }), null);
+    assert.strictEqual(parseDashboardMessage(null), null);
   });
 
   await test('live panels (NOM-28): body renderers vs full document + #root/update wiring', () => {

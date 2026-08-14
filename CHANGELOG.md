@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0
+
+Closes the **v1.2 — Live & interactive UI** milestone.
+
+### Added
+
+- **Dashboard drill-down & tree reveal** (NOM-30): clicking a problem job in the cluster dashboard opens its Job Panel and reveals + selects it in the explorer tree. The tree now uses `createTreeView` with stable item ids and `getParent`, so reveal can locate the node. Pure `parseDashboardMessage` validates the webview→host messages (tested); `revealJob` is best-effort and never throws.
+
 ## 1.6.0
 
 ### Added

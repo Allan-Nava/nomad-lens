@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { renderDashboard, renderDashboardBody } from './core/webview/dashboard';
+import { renderDashboard, renderDashboardBody, parseDashboardMessage } from './core/webview/dashboard';
 import { renderDiffPage } from './core/webview/diff';
 import { JobDiff } from './core/api';
 import { renderJobPanel, renderJobPanelBody, isAllowedPanelCommand, isAllocPanelCommand, GaugeTask } from './core/webview/job';
@@ -103,11 +103,13 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
         item.iconPath = new vscode.ThemeIcon(
           node.label === 'Jobs' ? 'rocket' : node.label === 'Nodes' ? 'server-environment' : 'history'
         );
+        item.id = `section:${node.label}`;
         return item;
       }
       case 'job': {
         const health = jobHealth(node.job);
         const item = new vscode.TreeItem(node.job.id, vscode.TreeItemCollapsibleState.Collapsed);
+        item.id = `job:${node.job.id}`;
         item.description = `${health} · ${node.job.running}/${node.job.desired} alloc${node.job.failed ? ` · ${node.job.failed} failed` : ''}`;
         item.iconPath = new vscode.ThemeIcon(HEALTH_ICON[health] ?? 'question');
         item.contextValue = 'job';
@@ -187,6 +189,12 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
         /* best effort */
       }
     });
+  }
+
+  /** Only jobs are revealed (NOM-30); their parent is the Jobs section. */
+  getParent(node: Node): Node | undefined {
+    if (node.kind === 'job') return { kind: 'section', label: 'Jobs' };
+    return undefined;
   }
 
   async getChildren(node?: Node): Promise<Node[]> {
@@ -280,7 +288,18 @@ export function activate(context: vscode.ExtensionContext): void {
   updateStatus();
 
   const tree = new NomadTree(() => client);
-  context.subscriptions.push(vscode.window.registerTreeDataProvider('nomadLens.explorer', tree), status);
+  const treeView = vscode.window.createTreeView('nomadLens.explorer', { treeDataProvider: tree });
+  context.subscriptions.push(treeView, status);
+  // Reveal a job in the tree (NOM-30); best-effort — never let it throw.
+  const revealJob = async (jobId: string) => {
+    if (!client) return;
+    try {
+      const job = (await client.jobs()).find((j) => j.id === jobId);
+      if (job) await treeView.reveal({ kind: 'job', job }, { select: true, focus: false, expand: true });
+    } catch {
+      /* reveal is best-effort */
+    }
+  };
 
   const stopAllStreams = () => {
     for (const [, s] of logStreams) s.controller.abort();
@@ -1011,7 +1030,12 @@ export function activate(context: vscode.ExtensionContext): void {
       dashPanel.onDidDispose(() => (dashPanel = undefined), null, context.subscriptions);
       dashPanel.webview.onDidReceiveMessage(
         (m) => {
-          if (m?.type === 'refresh') void renderDashboardPanel();
+          const msg = parseDashboardMessage(m);
+          if (msg?.type === 'refresh') void renderDashboardPanel();
+          else if (msg?.type === 'open') {
+            void vscode.commands.executeCommand('nomadLens.jobPanel', { job: { id: msg.jobId } });
+            void revealJob(msg.jobId);
+          }
         },
         undefined,
         context.subscriptions

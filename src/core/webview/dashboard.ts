@@ -62,7 +62,7 @@ export function renderDashboardBody(d: DashboardData): string {
     ? problems
         .map(
           (j) =>
-            `<tr><td>${esc(j.id)}</td><td><span class="dot" style="background:${
+            `<tr><td><span class="link" data-job="${esc(j.id)}">${esc(j.id)}</span></td><td><span class="dot" style="background:${
               HEALTH_COLORS[jobHealth(j)] ?? HEALTH_COLORS.dead
             }"></span>${esc(jobHealth(j))}</td><td class="num">${j.running}/${j.desired}</td><td class="num">${
               j.failed || ''
@@ -148,7 +148,19 @@ const DASHBOARD_CSS = `
   .head { display: flex; justify-content: space-between; align-items: center; }
   .live { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--vscode-charts-green, #3FE0A8); opacity: 0; vertical-align: middle; }
   .live.on { opacity: 1; transition: opacity .1s; }
+  .link { cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 `;
+
+export type DashboardMessage = { type: 'refresh' } | { type: 'open'; jobId: string } | null;
+
+/** Validate a message posted by the dashboard webview (NOM-30). Pure and tested. */
+export function parseDashboardMessage(m: unknown): DashboardMessage {
+  if (!m || typeof m !== 'object') return null;
+  const rec = m as { type?: unknown; jobId?: unknown };
+  if (rec.type === 'refresh') return { type: 'refresh' };
+  if (rec.type === 'open' && typeof rec.jobId === 'string') return { type: 'open', jobId: rec.jobId };
+  return null;
+}
 
 /** Full webview document. The body lives in #root so it can be swapped in place
  *  by a live update (NOM-28) without reloading the page (scroll kept, no flicker). */
@@ -166,7 +178,9 @@ export function renderDashboard(d: DashboardData): string {
   <script nonce="${d.nonce}">
     const vscode = acquireVsCodeApi();
     document.addEventListener('click', (e) => {
-      if (e.target && e.target.id === 'refresh') vscode.postMessage({ type: 'refresh' });
+      if (e.target && e.target.id === 'refresh') { vscode.postMessage({ type: 'refresh' }); return; }
+      const j = e.target && e.target.closest ? e.target.closest('[data-job]') : null;
+      if (j) vscode.postMessage({ type: 'open', jobId: j.dataset.job });
     });
     window.addEventListener('message', (e) => {
       const m = e.data;
