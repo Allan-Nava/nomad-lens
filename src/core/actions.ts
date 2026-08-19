@@ -11,7 +11,13 @@ export type NomadActionKind =
   | 'drainNode'
   | 'stopDrain'
   | 'nodeIneligible'
-  | 'nodeEligible';
+  | 'nodeEligible'
+  | 'promoteDeployment'
+  | 'applyJob'
+  | 'pauseDeployment'
+  | 'resumeDeployment'
+  | 'failDeployment'
+  | 'cancelDeployment';
 
 export interface ActionMeta {
   /** Verb shown in the messages and as the confirmation button label. */
@@ -36,6 +42,12 @@ export const ACTIONS: Record<NomadActionKind, ActionMeta> = {
   stopDrain: { verb: 'Stop draining node', destructive: false, requireType: false },
   nodeIneligible: { verb: 'Make node ineligible', destructive: false, requireType: false },
   nodeEligible: { verb: 'Make node eligible', destructive: false, requireType: false },
+  promoteDeployment: { verb: 'Promote deployment canaries', destructive: false, requireType: false },
+  applyJob: { verb: 'Apply job', destructive: true, requireType: true },
+  pauseDeployment: { verb: 'Pause deployment', destructive: false, requireType: false },
+  resumeDeployment: { verb: 'Resume deployment', destructive: false, requireType: false },
+  failDeployment: { verb: 'Fail deployment', destructive: true, requireType: true },
+  cancelDeployment: { verb: 'Cancel deployment', destructive: true, requireType: true },
 };
 
 /** Confirmation message for an action on a target (job id / alloc id / node name). */

@@ -15,7 +15,9 @@
 
 ## Features
 
-- **Cluster explorer** — jobs with real health (a `running` job missing allocations shows as **degraded**), allocations with restart counts, tasks, nodes (ready/drain), active deployments. Multi-cluster via settings, one click to switch.
+- **Cluster explorer** — jobs with real health (a `running` job missing allocations shows as **degraded**), allocations with restart counts, tasks, nodes (ready/drain), active deployments with canary promotion and pause/resume/fail/cancel controls. Multi-cluster via settings, one click to switch.
+- **Multi-allocation log console** — select several allocation/task streams from a job and follow them side by side in tabs with filtering.
+- **Plan and apply** — preview a `.nomad`/`.hcl` job diff, then apply it only after explicit typed confirmation.
 - **Cluster dashboard** — a webview panel with a job-health donut, the problem list, nodes needing attention, and active deployments with progress bars. Zero-dependency SVG charts, theme-aware, one Refresh away.
 - **Detail panels & log console** — per-job and per-node webviews (allocations, resource gauges + sparklines, version history, drain/eligibility) with action buttons that reuse the confirmed commands, plus a log console with level colouring, a live filter and follow/wrap. Dashboard and job panels update in place on each poll tick.
 - **Global search** — one QuickPick over every job of every configured cluster; pick one to switch cluster and open its panel.

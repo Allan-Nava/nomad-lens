@@ -47,6 +47,29 @@ export function deployStatus(status: string, agg: DeployAgg): DeployStatus {
   return { pct, active, done: ok || failed, ok, failed };
 }
 
+/** True when an active deployment has canaries that Nomad can promote. */
+export function canPromoteDeployment(deployment: { status: string; canaries: number }): boolean {
+  return ['running', 'paused'].includes(deployment.status) && deployment.canaries > 0;
+}
+
+/** Request promotion of every canary in a deployment. */
+export function promoteDeploymentBody(deploymentId: string): { DeploymentID: string; All: true } {
+  return { DeploymentID: deploymentId, All: true };
+}
+
+export type DeploymentControl = 'pause' | 'resume' | 'fail' | 'cancel';
+
+/** Whether a deployment state supports the requested operational control. */
+export function canControlDeployment(status: string, control: DeploymentControl): boolean {
+  if (control === 'resume') return status === 'paused';
+  if (control === 'pause' || control === 'fail') return status === 'running' || status === 'paused';
+  return status === 'running' || status === 'paused' || status === 'pending';
+}
+
+export function pauseDeploymentBody(deploymentId: string, paused: boolean): { DeploymentID: string; Pause: boolean } {
+  return { DeploymentID: deploymentId, Pause: paused };
+}
+
 export type DeployNotice = { kind: 'success' | 'failure'; message: string } | null;
 
 /** Notification to emit when a deployment's status changed since the previous

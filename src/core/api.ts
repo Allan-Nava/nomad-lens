@@ -2,7 +2,7 @@
 // so it can be integration-tested against `nomad agent -dev`.
 // Uses the global fetch available in Node 18+ / the VS Code extension host.
 
-import { aggregateDeployment, DeployTaskGroup } from './deploy';
+import { aggregateDeployment, DeployTaskGroup, pauseDeploymentBody, promoteDeploymentBody } from './deploy';
 import { scaleBody, RawScaleStatus } from './scale';
 import { DispatchBody } from './dispatch';
 import { countActiveAllocs, drainBody, eligibilityBody, stopDrainBody } from './nodes';
@@ -301,6 +301,26 @@ export class NomadClient {
     return this.postJson(`job/${encodeURIComponent(id)}/dispatch`, body);
   }
 
+  /** Promote every canary in a deployment (NOM-38). */
+  async promoteDeployment(id: string): Promise<void> {
+    await this.postVoid(`deployment/${encodeURIComponent(id)}/promote`, promoteDeploymentBody(id));
+  }
+
+  /** Pause or resume a deployment (NOM-41). */
+  async pauseDeployment(id: string, paused: boolean): Promise<void> {
+    await this.postVoid(`deployment/${encodeURIComponent(id)}/pause`, pauseDeploymentBody(id, paused));
+  }
+
+  /** Mark a deployment failed (NOM-42). */
+  async failDeployment(id: string): Promise<void> {
+    await this.postVoid(`deployment/${encodeURIComponent(id)}/fail`, { DeploymentID: id });
+  }
+
+  /** Cancel a deployment (NOM-43). */
+  async cancelDeployment(id: string): Promise<void> {
+    await this.deleteVoid(`deployment/${encodeURIComponent(id)}`);
+  }
+
   async nodes(): Promise<NodeSummary[]> {
     type Raw = { ID: string; Name: string; Status: string; Drain: boolean; SchedulingEligibility?: string };
     const raw = await this.getJson<Raw[]>('nodes');
@@ -388,6 +408,15 @@ export class NomadClient {
       method: 'POST',
       headers: { ...this.headers(), 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`Nomad API ${path}: HTTP ${res.status} ${truncate(await res.text())}`);
+  }
+
+  private async deleteVoid(path: string): Promise<void> {
+    const res = await fetch(this.url(path), {
+      method: 'DELETE',
+      headers: this.headers(),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Nomad API ${path}: HTTP ${res.status} ${truncate(await res.text())}`);

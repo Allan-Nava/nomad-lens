@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.15.0
+
+Starts and closes the **v1.6 — Delivery control** milestone.
+
+### Added
+
+- **Multi-allocation log console** (NOM-39): select multiple allocation/task/type streams from a job and follow them concurrently in tabs with shared filtering, follow and wrap controls.
+- **Apply current job file** (NOM-40): parse and plan the active `.nomad`/`.hcl` file, show the diff, then require typing the job id before registering it.
+- **Deployment controls** (NOM-41, NOM-42, NOM-43): pause/resume, fail and cancel explicitly selected deployments through the Nomad API, with state guards and confirmation; fail and cancel require typing the deployment target.
+
+## 1.14.0
+
+Starts and closes the **v1.5 — Canary operations** milestone.
+
+### Added
+
+- **Promote deployment canaries** (NOM-38): active `running` or `paused` deployments with canaries now expose *Promote Deployment Canaries* in the deployment tree and job panel. The command calls `POST /v1/deployment/:id/promote` with `All: true`, requires explicit confirmation, and refreshes the tree and deployment watch after success. Pure eligibility and request-body logic in `core/deploy.ts`, tested.
+
 ## 1.13.0
 
 Closes the **v1.4 — Scale & dispatch** milestone.

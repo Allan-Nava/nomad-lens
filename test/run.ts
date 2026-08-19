@@ -55,6 +55,10 @@ import {
   deployStatusBar,
   deployNotification,
   isDeployStalled,
+  canPromoteDeployment,
+  promoteDeploymentBody,
+  canControlDeployment,
+  pauseDeploymentBody,
 } from '../src/core/deploy';
 import { grepLogs, renderGrepReport, LogSource } from '../src/core/grep';
 import { summarizeJob, compareJobSpecs, renderComparison, jobImages, renderImageInventory, RawJob } from '../src/core/drift';
@@ -396,6 +400,20 @@ async function main(): Promise<void> {
     assert.ok(html.includes('nonce-LOGNONCE') && html.includes('Content-Security-Policy'));
     assert.ok(html.includes('id="filter"') && html.includes('id="follow"') && html.includes('id="wrap"'));
     assert.ok(html.includes('class="ln lvl-error"') && html.includes('ERROR boom'));
+
+    const multi = renderLogConsole({
+      title: 'api logs',
+      lines: [],
+      streams: [
+        { id: 'a/stdout', label: 'a · app · stdout', lines: [classifyLine('a line')] },
+        { id: 'b/stderr', label: 'b · app · stderr', lines: [classifyLine('ERROR b')] },
+      ],
+      nonce: 'MULTINONCE',
+      cspSource: '',
+    });
+    assert.ok(multi.includes('a · app · stdout') && multi.includes('b · app · stderr'), 'stream tabs');
+    assert.ok(multi.includes('data-stream="a/stdout"') && multi.includes('data-stream="b/stderr"'));
+    assert.ok(multi.includes('CSS.escape') && multi.includes('streamId'), 'messages target streams');
   });
 
   await test('dashboard drill-down (NOM-30): clickable job + message parser', () => {
@@ -593,6 +611,8 @@ async function main(): Promise<void> {
     assert.ok(html.includes('⚠') && html.includes('OOM'), 'alloc warnings shown');
     assert.ok(html.includes('data-cmd="nomadLens.restartAlloc"') && html.includes('data-alloc="aaaa1111bbbb"'));
     assert.ok(html.includes('data-cmd="nomadLens.stopJob"'));
+    assert.ok(isAllowedPanelCommand('nomadLens.promoteDeployment'));
+    assert.ok(html.includes('data-cmd="nomadLens.promoteDeployment"'), 'canary promotion button shown');
     assert.ok(html.includes('deploy') || html.includes('Deployment'), 'deployment section');
   });
 
@@ -756,6 +776,25 @@ async function main(): Promise<void> {
     assert.ok(deployStatusBar('web', 'successful', agg).includes('$(check)'));
   });
 
+  await test('deploy canary promotion: guard and request body', () => {
+    assert.strictEqual(canPromoteDeployment({ status: 'running', canaries: 1 }), true);
+    assert.strictEqual(canPromoteDeployment({ status: 'paused', canaries: 2 }), true);
+    assert.strictEqual(canPromoteDeployment({ status: 'pending', canaries: 1 }), false);
+    assert.strictEqual(canPromoteDeployment({ status: 'successful', canaries: 1 }), false);
+    assert.strictEqual(canPromoteDeployment({ status: 'running', canaries: 0 }), false);
+    assert.deepStrictEqual(promoteDeploymentBody('deployment/1'), { DeploymentID: 'deployment/1', All: true });
+  });
+
+  await test('deployment controls: state guards and pause payload', () => {
+    assert.strictEqual(canControlDeployment('running', 'pause'), true);
+    assert.strictEqual(canControlDeployment('paused', 'resume'), true);
+    assert.strictEqual(canControlDeployment('pending', 'resume'), false);
+    assert.strictEqual(canControlDeployment('successful', 'cancel'), false);
+    assert.strictEqual(canControlDeployment('running', 'fail'), true);
+    assert.deepStrictEqual(pauseDeploymentBody('d1', true), { DeploymentID: 'd1', Pause: true });
+    assert.deepStrictEqual(pauseDeploymentBody('d1', false), { DeploymentID: 'd1', Pause: false });
+  });
+
   await test('deployNotification: notifies only on transitions to terminal states', () => {
     assert.strictEqual(deployNotification(undefined, 'web', 'running', ''), null); // primo giro
     assert.strictEqual(deployNotification('running', 'web', 'running', ''), null); // no change
@@ -786,6 +825,21 @@ async function main(): Promise<void> {
     assert.strictEqual(ACTIONS.revertJob.destructive, true);
     assert.strictEqual(ACTIONS.revertJob.requireType, true);
     assert.ok(confirmMessage('revertJob', 'packager').includes('packager'));
+  });
+
+  await test('actions: promote deployment is confirmed and non-destructive', () => {
+    assert.strictEqual(ACTIONS.promoteDeployment.destructive, false);
+    assert.strictEqual(ACTIONS.promoteDeployment.requireType, false);
+    assert.ok(confirmMessage('promoteDeployment', 'web (d1)').includes('web (d1)'));
+  });
+
+  await test('actions: apply and deployment controls use appropriate confirmation strength', () => {
+    assert.strictEqual(ACTIONS.applyJob.destructive, true);
+    assert.strictEqual(ACTIONS.applyJob.requireType, true);
+    assert.strictEqual(ACTIONS.pauseDeployment.destructive, false);
+    assert.strictEqual(ACTIONS.resumeDeployment.destructive, false);
+    assert.strictEqual(ACTIONS.failDeployment.requireType, true);
+    assert.strictEqual(ACTIONS.cancelDeployment.requireType, true);
   });
 
   // --- versions (NOM-14) -------------------------------------------------------

@@ -58,7 +58,7 @@ Open the **Nomad** panel. You will see three sections:
 
 - **Jobs** — every job with its **real health**. A `running` job with missing or failed allocations is marked **degraded** (🟠), not "running": that distinction is the point of the whole extension. Expanding a job shows its allocations (excluding `complete` ones), and inside each one its tasks.
 - **Nodes** — nodes with status, drain progress and scheduling eligibility.
-- **Deployments** — active/recent deployments with status and description.
+- **Deployments** — active/recent deployments with status and description. Deployments with canaries expose **Promote Deployment Canaries** while they are `running` or `paused`.
 
 Allocations carry their own warnings: an allocation killed by **OOM** or stuck in a **restart loop** (≥3 restarts) shows a ⚠ with the reason, derived from the task events already present in the list — no extra API call.
 
@@ -87,6 +87,8 @@ How to read it:
 - It highlights `⚠ Placement failed for: …` and the plan's `⚠ Warnings`.
 
 If the diff contains more than you expected, **you find out before** applying.
+
+To apply the reviewed file, choose **Apply Current Job File (plan, confirm, register)** from the editor context menu or Command Palette. Nomad Lens shows the same plan diff first, then asks you to type the parsed job id. Only an exact id match registers the job with Nomad.
 
 ## 5. Job version history and revert
 
@@ -119,6 +121,7 @@ If there are no placement failures the report says so and points you at the allo
 
 - Expand job → alloc → task and click the task (or right-click → **Follow Task Logs**).
 - Pick `stdout` or `stderr`: a dedicated Output channel opens and **streams** (it does not poll), and multiple streams can sit side by side.
+- Right-click a job → **Open Log Console**, select one or more allocation/task/type streams, and inspect them in tabs. The filter, follow and wrap controls apply to the selected tab while every stream continues in the background.
 - **Stop Following Logs** from the Command Palette stops a stream. Streams are also closed on cluster switch and on deactivation, so no connection is left hanging.
 
 ## 8. Cross-allocation grep
@@ -172,6 +175,17 @@ While a deployment is active, the status bar shows live progress — `$(sync~spi
 - the deployment **stalls** — the healthy count has not moved for longer than `deploymentStallSeconds`.
 
 Turn it off with `nomadLens.deploymentWatch` if you do not want the polling.
+
+### Promote canaries
+
+When a deployment has healthy canaries and you are ready to continue the rollout:
+
+1. Expand **Deployments** and select the deployment, or open its job panel.
+2. Choose **Promote Deployment Canaries**. The command is shown only for `running` or `paused` deployments that still have canaries.
+3. Confirm the deployment and job shown in the modal. Nomad Lens sends `All: true` to Nomad, promoting every canary in that deployment.
+4. The tree, deployment watch and open live panels refresh after success. A failed request leaves the deployment unchanged and shows the API error.
+
+Other deployment controls are available from the deployment tree or Command Palette. Select a deployment explicitly, then **Pause Deployment**, **Resume Deployment**, **Fail Deployment** or **Cancel Deployment**. Pause/resume use the deployment pause endpoint; fail and cancel require typing the displayed job/deployment target.
 
 ## 13. Resource usage vs requested
 
@@ -259,17 +273,24 @@ Every command is prefixed with `Nomad Lens:` in the Command Palette. "Where" say
 | Show Problem Jobs Only (toggle) | view title | Keeps only unhealthy jobs (§3). |
 | Clear Job Filter | view title | Removes both filters. |
 | Plan Current Job File (diff vs running) | editor context (`.nomad`/`.hcl`) | Plan diff repo vs running (§4). |
+| Apply Current Job File (plan, confirm, register) | editor context / palette | Plan, show the diff, then register after typed confirmation (§4). |
 | Job Version History (diff between versions) | job | History table + diff between versions (§5). |
 | Revert Job to a Previous Version | job | Rollback with a plan preview, typed confirmation (§5). |
 | Explain Placement Failures | job | Why the scheduler cannot place it (§6). |
 | Follow Task Logs | task | Streams `stdout`/`stderr` (§7). |
 | Open Log Console | task | Webview log viewer: level colours, live filter, follow/wrap (§23). |
+| Open Log Console | job | Select and follow multiple allocation/task streams in tabs (§7). |
 | Stop Following Logs | palette | Stops one open stream. |
 | Grep Logs Across Allocations | job | Searches every allocation's logs (§8). |
 | Export Incident Bundle for Allocation | allocation | Incident folder with report and logs (§9). |
 | Restart Allocation | allocation | Restarts the allocation's tasks (§10). |
 | Stop Job | job | Deregisters the job — type the id (§10). |
 | Start Job | job | Re-registers a stopped job (§10). |
+| Promote Deployment Canaries | deployment with canaries, or job panel | Promotes every canary in an active deployment after explicit confirmation (§12). |
+| Pause Deployment | deployment / palette | Pause a selected active deployment (§12). |
+| Resume Deployment | paused deployment / palette | Resume a selected paused deployment (§12). |
+| Fail Deployment | deployment / palette | Mark a selected active deployment failed; type the target (§12). |
+| Cancel Deployment | deployment / palette | Cancel a selected pending or active deployment; type the target (§12). |
 | Drain Node | node | Evicts every allocation — type the node name (§11). |
 | Stop Draining Node | node (draining) | Cancels the drain (§11). |
 | Toggle Node Scheduling Eligibility | node | Eligible ⇄ ineligible (§11). |
@@ -320,7 +341,7 @@ This has nothing to do with Nomad — it is here because it breaks the editor of
 ## 22. Security in short
 
 - ACL tokens **only** from env vars (`tokenEnv`), never in settings, logs or output.
-- Most commands are read-only. The mutating ones (restart allocation, stop/start/revert job, node drain and eligibility) always require an explicit confirmation and never have a default button; the most destructive ones require typing the target's name.
+- Most commands are read-only. The mutating ones (restart allocation, stop/start/apply/revert job, deployment controls, canary promotion, node drain and eligibility) always require an explicit confirmation and never have a default button; the most destructive ones require typing the target's name.
 - Use `https://` for remote clusters: over `http://` the ACL token would travel in cleartext, and the extension warns you when that would happen.
 - Error bodies from the cluster are truncated before being shown, so raw output is not spilled into notifications.
 

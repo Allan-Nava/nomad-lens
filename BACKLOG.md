@@ -82,3 +82,19 @@ Operational Nomad actions not yet covered. Same rules: pure decision/render logi
 - [x] **NOM-35 — Force a periodic job**: for a `periodic` job, `POST /v1/job/:id/periodic/force` to trigger a run now, surfaced only on periodic jobs (detected from the spec). Confirmation, then reveal the launched child job. Pure guard (`isPeriodic`) tested.
 - [x] **NOM-36 — Dispatch a parameterized job**: for a parameterized job, collect the meta keys (required/optional, from the spec) and an optional payload, then `POST /v1/job/:id/dispatch`. Pure meta-form model + validation (required keys present) in `core/dispatch.ts`, tested; the input flow + confirmation in the glue.
 - [x] **NOM-37 — Scaling status & events**: `GET /v1/job/:id/scale` → current vs desired per group and the recent scaling events (who/when/why), rendered in the job panel and as a report. Pure `renderScaleStatus` tested.
+
+## v1.5 — Canary operations
+
+Operational controls for safe progressive deployments, reusing the existing deployment watch and confirmation flow.
+
+- [x] **NOM-38 — Promote deployment canaries**: promote all canaries of an active `running` or `paused` deployment via `POST /v1/deployment/:id/promote`. The action is available from the deployment tree item and job panel only when canaries exist, requires explicit confirmation, and refreshes the tree and live panels after success. Pure `canPromoteDeployment`/`promoteDeploymentBody` tested.
+
+## v1.6 — Delivery control
+
+Complete the operational loop from observing logs and plans to applying jobs and controlling deployments.
+
+- [x] **NOM-39 — Multi-allocation log console**: select multiple allocation/task/type streams from a job and follow them concurrently in a tabbed log console with shared filtering and wrap/follow controls.
+- [x] **NOM-40 — Apply current job file**: add an Apply command that parses and plans the active `.nomad`/`.hcl` file, shows the diff, then requires typing the job id before registering it.
+- [x] **NOM-41 — Pause/resume deployment**: control an explicitly selected active deployment through the Nomad pause endpoint, with pause and resume confirmation.
+- [x] **NOM-42 — Fail deployment**: mark an explicitly selected running or paused deployment failed, with typed confirmation.
+- [x] **NOM-43 — Cancel deployment**: cancel an explicitly selected pending, running or paused deployment, with typed confirmation.

@@ -2,7 +2,7 @@
   "name": "nomad-lens",
   "displayName": "Nomad Lens",
   "description": "HashiCorp Nomad operations inside VS Code: jobs/allocations/logs, plan diff between your repo job spec and the running one, one-click incident bundles, cluster snapshot reports.",
-  "version": "1.13.0",
+  "version": "1.15.0",
   "publisher": "allannava95",
   "license": "MIT",
   "icon": "media/logo.png",
@@ -107,6 +107,10 @@
         "title": "Nomad Lens: Plan Current Job File (diff vs running)"
       },
       {
+        "command": "nomadLens.applyFile",
+        "title": "Nomad Lens: Apply Current Job File (plan, confirm, register)"
+      },
+      {
         "command": "nomadLens.incidentBundle",
         "title": "Nomad Lens: Export Incident Bundle for Allocation"
       },
@@ -137,6 +141,26 @@
       {
         "command": "nomadLens.scaleStatus",
         "title": "Nomad Lens: Scaling Status & Events"
+      },
+      {
+        "command": "nomadLens.promoteDeployment",
+        "title": "Nomad Lens: Promote Deployment Canaries"
+      },
+      {
+        "command": "nomadLens.pauseDeployment",
+        "title": "Nomad Lens: Pause Deployment"
+      },
+      {
+        "command": "nomadLens.resumeDeployment",
+        "title": "Nomad Lens: Resume Deployment"
+      },
+      {
+        "command": "nomadLens.failDeployment",
+        "title": "Nomad Lens: Fail Deployment"
+      },
+      {
+        "command": "nomadLens.cancelDeployment",
+        "title": "Nomad Lens: Cancel Deployment"
       },
       {
         "command": "nomadLens.forcePeriodic",
@@ -245,6 +269,10 @@
           "when": "view == nomadLens.explorer && viewItem == task"
         },
         {
+          "command": "nomadLens.logConsole",
+          "when": "view == nomadLens.explorer && viewItem =~ /^job/"
+        },
+        {
           "command": "nomadLens.incidentBundle",
           "when": "view == nomadLens.explorer && viewItem =~ /^alloc/"
         },
@@ -271,6 +299,26 @@
         {
           "command": "nomadLens.scaleStatus",
           "when": "view == nomadLens.explorer && viewItem =~ /^job/"
+        },
+        {
+          "command": "nomadLens.promoteDeployment",
+          "when": "view == nomadLens.explorer && viewItem =~ /^deployment-(running|paused)$/"
+        },
+        {
+          "command": "nomadLens.pauseDeployment",
+          "when": "view == nomadLens.explorer && viewItem =~ /^deployment-(running|paused)$/"
+        },
+        {
+          "command": "nomadLens.resumeDeployment",
+          "when": "view == nomadLens.explorer && viewItem == deployment-paused"
+        },
+        {
+          "command": "nomadLens.failDeployment",
+          "when": "view == nomadLens.explorer && viewItem =~ /^deployment-(running|paused)$/"
+        },
+        {
+          "command": "nomadLens.cancelDeployment",
+          "when": "view == nomadLens.explorer && viewItem =~ /^deployment-(running|paused|pending)$/"
         },
         {
           "command": "nomadLens.forcePeriodic",
@@ -324,6 +372,10 @@
       "editor/title/context": [
         {
           "command": "nomadLens.planFile",
+          "when": "resourceExtname == .nomad || resourceExtname == .hcl"
+        },
+        {
+          "command": "nomadLens.applyFile",
           "when": "resourceExtname == .nomad || resourceExtname == .hcl"
         }
       ]

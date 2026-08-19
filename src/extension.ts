@@ -18,6 +18,7 @@ import {
   JobSummary,
   AllocSummary,
   NodeSummary,
+  DeploymentSummary,
   tokenSentInClear,
   mapPool,
 } from './core/api';
@@ -50,7 +51,15 @@ import { ACTIONS, NomadActionKind, confirmMessage } from './core/actions';
 import { parseVersions, versionPickItem, renderVersionHistory, renderVersionDiff, JobVersion } from './core/versions';
 import { latestPlacementFailures, placementSummary, renderPlacementReport } from './core/placement';
 import { parseAllocStats, renderResourceUsage, taskRequests, TaskUsage } from './core/resources';
-import { deployStatus, deployStatusBar, deployNotification, isDeployStalled } from './core/deploy';
+import {
+  canControlDeployment,
+  canPromoteDeployment,
+  deployStatus,
+  deployStatusBar,
+  deployNotification,
+  isDeployStalled,
+  DeploymentControl,
+} from './core/deploy';
 
 /** Max placement checks in flight while marking stuck jobs in the tree. */
 const PLACEMENT_CONCURRENCY = 4;
@@ -61,6 +70,7 @@ type Node =
   | { kind: 'alloc'; alloc: AllocSummary }
   | { kind: 'task'; alloc: AllocSummary; task: string }
   | { kind: 'node'; node: NodeSummary }
+  | { kind: 'deployment'; deployment: DeploymentSummary }
   | { kind: 'filter'; label: string }
   | { kind: 'leaf'; label: string; iconId?: string };
 
@@ -165,6 +175,18 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
         item.command = { command: 'nomadLens.nodePanel', title: 'Open Node Panel', arguments: [node] };
         return item;
       }
+      case 'deployment': {
+        const d = node.deployment;
+        const item = new vscode.TreeItem(
+          `${d.jobId} — ${d.status}${d.description ? ` · ${d.description}` : ''}`,
+          vscode.TreeItemCollapsibleState.None
+        );
+        item.id = `deployment:${d.id}`;
+        item.iconPath = new vscode.ThemeIcon(d.status === 'successful' ? 'pass-filled' : 'sync');
+        item.contextValue = `deployment-${d.status}`;
+        item.tooltip = `${d.jobId} · ${d.status} · ${d.healthy}/${d.desired} healthy${d.canaries ? ` · ${d.canaries} canary` : ''}`;
+        return item;
+      }
       case 'filter': {
         const item = new vscode.TreeItem(`filter: ${node.label}`, vscode.TreeItemCollapsibleState.None);
         item.iconPath = new vscode.ThemeIcon('filter');
@@ -237,11 +259,7 @@ class NomadTree implements vscode.TreeDataProvider<Node> {
       if (node.kind === 'section' && node.label === 'Deployments') {
         const deps = await client.deployments();
         if (!deps.length) return [{ kind: 'leaf', label: '(no deployment)', iconId: 'dash' }];
-        return deps.map((d) => ({
-          kind: 'leaf' as const,
-          label: `${d.jobId} — ${d.status}${d.description ? ` · ${d.description}` : ''}`,
-          iconId: d.status === 'successful' ? 'pass-filled' : 'sync',
-        }));
+        return deps.map((deployment) => ({ kind: 'deployment' as const, deployment }));
       }
       if (node.kind === 'job') {
         const allocs = await client.allocations(node.job.id);
@@ -367,6 +385,36 @@ export function activate(context: vscode.ExtensionContext): void {
       cspSource: diffPanel.webview.cspSource,
     });
     diffPanel.reveal(vscode.ViewColumn.Beside);
+  };
+
+  const planCurrentFile = async (apply: boolean) => {
+    if (!client) return;
+    const doc = vscode.window.activeTextEditor?.document;
+    if (!doc || !/\.(nomad|hcl)$/.test(doc.fileName)) {
+      void vscode.window.showWarningMessage('Open a .nomad/.hcl job spec before running the plan.');
+      return;
+    }
+    try {
+      const job = await client.parseHcl(doc.getText());
+      const plan = await client.plan(job);
+      showDiffPanel(`${apply ? 'Apply' : 'Plan'} — ${path.basename(doc.fileName)} vs ${client.clusterName}`, plan.Diff, {
+        warnings: plan.Warnings,
+        failedPlacements: plan.FailedTGAllocs ? Object.keys(plan.FailedTGAllocs) : undefined,
+      });
+      if (!apply) return;
+      const id = String((job as { ID?: string }).ID ?? '');
+      if (!id) {
+        void vscode.window.showWarningMessage('The parsed job has no id and cannot be applied.');
+        return;
+      }
+      if (!(await confirmAction('applyJob', id))) return;
+      await client.registerJob(job);
+      void vscode.window.showInformationMessage(`Applied job ${id}.`);
+      tree.refresh();
+      void pollDeployments();
+    } catch (err) {
+      void vscode.window.showErrorMessage(`${apply ? 'Apply' : 'Plan'} failed — ${err}`);
+    }
   };
 
   // --- Job detail panel (NOM-24) -----------------------------------------------
@@ -586,6 +634,49 @@ export function activate(context: vscode.ExtensionContext): void {
     void renderDashboardPanel();
   };
 
+  const chooseDeployment = async (
+    control: DeploymentControl,
+    item?: { deployment: DeploymentSummary }
+  ): Promise<DeploymentSummary | undefined> => {
+    if (!client) return undefined;
+    if (item?.deployment && canControlDeployment(item.deployment.status, control)) return item.deployment;
+    const deployments = (await client.deployments()).filter((d) => canControlDeployment(d.status, control));
+    if (!deployments.length) {
+      void vscode.window.showInformationMessage(`No deployment can ${control} right now.`);
+      return undefined;
+    }
+    return (
+      await vscode.window.showQuickPick(
+        deployments.map((deployment) => ({
+          label: `${deployment.jobId} — ${deployment.status}`,
+          description: `${deployment.id} · ${deployment.healthy}/${deployment.desired} healthy`,
+          deployment,
+        })),
+        { placeHolder: `Select deployment to ${control}` }
+      )
+    )?.deployment;
+  };
+
+  const runDeploymentControl = async (
+    control: DeploymentControl,
+    item: { deployment: DeploymentSummary } | undefined,
+    action: NomadActionKind,
+    invoke: (deployment: DeploymentSummary) => Promise<void>
+  ) => {
+    if (!client) return;
+    try {
+      const deployment = await chooseDeployment(control, item);
+      if (!deployment || !(await confirmAction(action, `${deployment.jobId} (${deployment.id})`))) return;
+      await invoke(deployment);
+      const past = control === 'fail' ? 'Failed' : control === 'cancel' ? 'Cancelled' : control === 'pause' ? 'Paused' : 'Resumed';
+      void vscode.window.showInformationMessage(`${past} deployment ${deployment.jobId}.`);
+      tree.refresh();
+      void pollDeployments();
+    } catch (err) {
+      void vscode.window.showErrorMessage(`Deployment ${control} failed — ${err}`);
+    }
+  };
+
   context.subscriptions.push(
     vscode.commands.registerCommand('nomadLens.refresh', () => tree.refresh()),
 
@@ -656,24 +747,8 @@ export function activate(context: vscode.ExtensionContext): void {
       logStreams.delete(key);
     }),
 
-    vscode.commands.registerCommand('nomadLens.planFile', async () => {
-      if (!client) return;
-      const doc = vscode.window.activeTextEditor?.document;
-      if (!doc || !/\.(nomad|hcl)$/.test(doc.fileName)) {
-        void vscode.window.showWarningMessage('Open a .nomad/.hcl job spec before running the plan.');
-        return;
-      }
-      try {
-        const job = await client.parseHcl(doc.getText());
-        const plan = await client.plan(job);
-        showDiffPanel(`Plan — ${path.basename(doc.fileName)} vs ${client.clusterName}`, plan.Diff, {
-          warnings: plan.Warnings,
-          failedPlacements: plan.FailedTGAllocs ? Object.keys(plan.FailedTGAllocs) : undefined,
-        });
-      } catch (err) {
-        void vscode.window.showErrorMessage(`nomad plan failed — ${err}`);
-      }
-    }),
+    vscode.commands.registerCommand('nomadLens.planFile', () => planCurrentFile(false)),
+    vscode.commands.registerCommand('nomadLens.applyFile', () => planCurrentFile(true)),
 
     vscode.commands.registerCommand('nomadLens.incidentBundle', async (node?: { alloc: AllocSummary }) => {
       if (!client || !node) return;
@@ -809,6 +884,40 @@ export function activate(context: vscode.ExtensionContext): void {
         void vscode.window.showErrorMessage(`Scaling status failed — ${err}`);
       }
     }),
+
+    vscode.commands.registerCommand('nomadLens.promoteDeployment', async (item?: { deployment: DeploymentSummary } | { job: JobSummary }) => {
+      if (!client || !item) return;
+      const active = client;
+      try {
+        const deployment = 'deployment' in item
+          ? item.deployment
+          : (await active.deployments()).find((d) => d.jobId === item.job.id && canPromoteDeployment(d));
+        if (!deployment || !canPromoteDeployment(deployment)) {
+          void vscode.window.showWarningMessage('This deployment has no canaries ready for promotion.');
+          return;
+        }
+        if (!(await confirmAction('promoteDeployment', `${deployment.jobId} (${deployment.id})`))) return;
+        await active.promoteDeployment(deployment.id);
+        void vscode.window.showInformationMessage(`Promoted canaries for ${deployment.jobId}.`);
+        tree.refresh();
+        void pollDeployments();
+      } catch (err) {
+        void vscode.window.showErrorMessage(`Promote canaries failed — ${err}`);
+      }
+    }),
+
+    vscode.commands.registerCommand('nomadLens.pauseDeployment', (item?: { deployment: DeploymentSummary }) =>
+      runDeploymentControl('pause', item, 'pauseDeployment', (deployment) => client!.pauseDeployment(deployment.id, true))
+    ),
+    vscode.commands.registerCommand('nomadLens.resumeDeployment', (item?: { deployment: DeploymentSummary }) =>
+      runDeploymentControl('resume', item, 'resumeDeployment', (deployment) => client!.pauseDeployment(deployment.id, false))
+    ),
+    vscode.commands.registerCommand('nomadLens.failDeployment', (item?: { deployment: DeploymentSummary }) =>
+      runDeploymentControl('fail', item, 'failDeployment', (deployment) => client!.failDeployment(deployment.id))
+    ),
+    vscode.commands.registerCommand('nomadLens.cancelDeployment', (item?: { deployment: DeploymentSummary }) =>
+      runDeploymentControl('cancel', item, 'cancelDeployment', (deployment) => client!.cancelDeployment(deployment.id))
+    ),
 
     vscode.commands.registerCommand('nomadLens.forcePeriodic', async (node?: { job: JobSummary }) => {
       if (!client || !node) return;
@@ -1242,43 +1351,79 @@ export function activate(context: vscode.ExtensionContext): void {
       await renderJobPanelFor(jobId);
     }),
 
-    vscode.commands.registerCommand('nomadLens.logConsole', async (node?: { alloc: AllocSummary; task: string }) => {
+    vscode.commands.registerCommand('nomadLens.logConsole', async (node?: { alloc: AllocSummary; task: string } | { job: JobSummary }) => {
       if (!client || !node) return;
       const active = client;
-      const type = (await vscode.window.showQuickPick(['stdout', 'stderr'], {
-        placeHolder: `Log console — ${node.task} (alloc ${node.alloc.id.slice(0, 8)})`,
-      })) as 'stdout' | 'stderr' | undefined;
-      if (!type) return;
+      type LogTarget = { alloc: AllocSummary; task: string; type: 'stdout' | 'stderr' };
+      let targets: LogTarget[];
+      if ('job' in node) {
+        const allocs = (await active.allocations(node.job.id)).filter((a) => a.clientStatus !== 'complete');
+        const options = allocs.flatMap((alloc) =>
+          alloc.tasks.flatMap((task) =>
+            (['stdout', 'stderr'] as const).map((type) => ({
+              label: `${alloc.id.slice(0, 8)} · ${task} · ${type}`,
+              description: alloc.clientStatus,
+              target: { alloc, task, type },
+            }))
+          )
+        );
+        if (!options.length) {
+          void vscode.window.showInformationMessage(`No active tasks for ${node.job.id}.`);
+          return;
+        }
+        const picked = await vscode.window.showQuickPick(options, {
+          canPickMany: true,
+          placeHolder: `Select allocation/task logs for ${node.job.id}`,
+        });
+        if (!picked?.length) return;
+        targets = picked.map((p) => p.target);
+      } else {
+        const type = (await vscode.window.showQuickPick(['stdout', 'stderr'], {
+          placeHolder: `Log console — ${node.task} (alloc ${node.alloc.id.slice(0, 8)})`,
+        })) as 'stdout' | 'stderr' | undefined;
+        if (!type) return;
+        targets = [{ alloc: node.alloc, task: node.task, type }];
+      }
       const panel = vscode.window.createWebviewPanel(
         'nomadLens.logConsole',
-        `Logs: ${node.alloc.jobId}/${node.task} ${type}`,
+        targets.length === 1 ? `Logs: ${targets[0].alloc.jobId}/${targets[0].task}` : `Logs: ${targets[0].alloc.jobId} (${targets.length} streams)`,
         vscode.ViewColumn.Active,
         { enableScripts: true, retainContextWhenHidden: true }
       );
-      const tail = await active.logsTail(node.alloc.id, node.task, type, 65536).catch(() => '');
+      const streams = await Promise.all(
+        targets.map(async (target) => ({
+          id: `${target.alloc.id}/${target.task}/${target.type}`,
+          label: `${target.alloc.id.slice(0, 8)} · ${target.task} · ${target.type}`,
+          lines: classifyLines(await active.logsTail(target.alloc.id, target.task, target.type, 65536).catch(() => '')),
+        }))
+      );
       panel.webview.html = renderLogConsole({
-        title: `${node.alloc.jobId}/${node.task} · ${type}`,
-        lines: classifyLines(tail),
+        title: targets.length === 1 ? `${targets[0].alloc.jobId}/${targets[0].task}` : `${targets[0].alloc.jobId} logs`,
+        lines: streams[0]?.lines ?? [],
+        streams,
         nonce: crypto.randomBytes(16).toString('base64'),
         cspSource: panel.webview.cspSource,
       });
-      let buf = '';
-      const controller = active.followLogs(
-        node.alloc.id,
-        node.task,
-        type,
-        (chunk) => {
-          buf += chunk;
-          const parts = buf.split('\n');
-          buf = parts.pop() ?? '';
-          if (parts.length) void panel.webview.postMessage({ type: 'append', lines: parts.map(classifyLine) });
-        },
-        (err) => {
-          if (buf) void panel.webview.postMessage({ type: 'append', lines: [classifyLine(buf)] });
-          void panel.webview.postMessage({ type: 'end', error: err?.message });
-        }
-      );
-      panel.onDidDispose(() => controller.abort(), null, context.subscriptions);
+      const controllers = targets.map((target) => {
+        const streamId = `${target.alloc.id}/${target.task}/${target.type}`;
+        let buf = '';
+        return active.followLogs(
+          target.alloc.id,
+          target.task,
+          target.type,
+          (chunk) => {
+            buf += chunk;
+            const parts = buf.split('\n');
+            buf = parts.pop() ?? '';
+            if (parts.length) void panel.webview.postMessage({ type: 'append', streamId, lines: parts.map(classifyLine) });
+          },
+          (err) => {
+            if (buf) void panel.webview.postMessage({ type: 'append', streamId, lines: [classifyLine(buf)] });
+            void panel.webview.postMessage({ type: 'end', streamId, error: err?.message });
+          }
+        );
+      });
+      panel.onDidDispose(() => controllers.forEach((controller) => controller.abort()), null, context.subscriptions);
     }),
 
     vscode.commands.registerCommand('nomadLens.nodePanel', async (item?: { node: NodeSummary }) => {
